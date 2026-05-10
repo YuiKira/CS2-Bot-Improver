@@ -150,13 +150,14 @@ Run `sv_standable_normal 0.7` in your game console
 ## Credits
 [metamod-source](https://github.com/alliedmodders/metamod-source)  
 [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp)  
+[Ray-Trace](https://github.com/FUNPLAY-pro-CS2/Ray-Trace)  
 [CS2-Bullseye-Bot](https://github.com/ed0ard/CS2-Bullseye-Bot)  
 [CS2_ExecAfter_No_Admin](https://github.com/ed0ard/CS2_ExecAfter_No_Admin) forked from [kus](https://github.com/kus)  
 [CS2-Bot-Randomizer](https://github.com/ed0ard/CS2-Bot-Randomizer)  
 [CS2-Smarter-Bot](https://github.com/ed0ard/CS2-Smarter-Bot)  
 [CS2-BotAI](https://github.com/ed0ard/CS2-BotAI) forked from [Austin](https://github.com/Austinbots)  
 [CS2-BotAI-for-Linux](https://github.com/Austinbots/CS2-BotAI)  
-[CS2-Bot-Buy](https://github.com/ed0ard/CS2-Bot-Buy)
+[CS2-Bot-Buy](https://github.com/ed0ard/CS2-Bot-Buy)  
 
 ## License
 GPL-3.0
