@@ -24,21 +24,21 @@ bot_add_t "yuurih";bot_add_t "FalleN";bot_add_t "KSCERATO";bot_add_t "YEKINDAR";
 
 3. Falcons
 
-bot_add_ct "NiKo";bot_add_ct "TeSeS";bot_add_ct "m0NESY";bot_add_ct "kyxsan";bot_add_ct "kyousuke";mp_teamlogo_1 fal;mp_teamname_1 Falcons
+bot_add_ct "NiKo";bot_add_ct "TeSeS";bot_add_ct "m0NESY";bot_add_ct "karrigan";bot_add_ct "kyousuke";mp_teamlogo_1 fal;mp_teamname_1 Falcons
 
-bot_add_t "NiKo";bot_add_t "TeSeS";bot_add_t "m0NESY";bot_add_t "kyxsan";bot_add_t "kyousuke";mp_teamlogo_2 fal;mp_teamname_2 Falcons
+bot_add_t "NiKo";bot_add_t "TeSeS";bot_add_t "m0NESY";bot_add_t "karrigan";bot_add_t "kyousuke";mp_teamlogo_2 fal;mp_teamname_2 Falcons
 
 4. MOUZ
 
-bot_add_ct "Brollan";bot_add_ct "torzsi";bot_add_ct "Spinx";bot_add_ct "Jimpphat";bot_add_ct "xertioN";mp_teamlogo_1 mouz;mp_teamname_1 MOUZ
+bot_add_ct "jL";bot_add_ct "torzsi";bot_add_ct "Spinx";bot_add_ct "xelex";bot_add_ct "xertioN";mp_teamlogo_1 mouz;mp_teamname_1 MOUZ
 
-bot_add_t "Brollan";bot_add_t "torzsi";bot_add_t "Spinx";bot_add_t "Jimpphat";bot_add_t "xertioN";mp_teamlogo_2 mouz;mp_teamname_2 MOUZ
+bot_add_t "jL";bot_add_t "torzsi";bot_add_t "Spinx";bot_add_t "xelex";bot_add_t "xertioN";mp_teamlogo_2 mouz;mp_teamname_2 MOUZ
 
 5. FaZe Clan
 
-bot_add_ct "karrigan";bot_add_ct "frozen";bot_add_ct "Twistzz";bot_add_ct "broky";bot_add_ct "jcobbb";mp_teamlogo_1 faze;mp_teamname_1 FaZe Clan
+bot_add_ct "enkay J";bot_add_ct "frozen";bot_add_ct "Twistzz";bot_add_ct "broky";bot_add_ct "jcobbb";mp_teamlogo_1 faze;mp_teamname_1 FaZe Clan
 
-bot_add_t "karrigan";bot_add_t "frozen";bot_add_t "Twistzz";bot_add_t "broky";bot_add_t "jcobbb";mp_teamlogo_2 faze;mp_teamname_2 FaZe Clan
+bot_add_t "enkay J";bot_add_t "frozen";bot_add_t "Twistzz";bot_add_t "broky";bot_add_t "jcobbb";mp_teamlogo_2 faze;mp_teamname_2 FaZe Clan
 
 6. The MongolZ
 
@@ -72,21 +72,21 @@ bot_add_t "MAJ3R";bot_add_t "XANTARES";bot_add_t "woxic";bot_add_t "soulfly";bot
 
 11. B8
 
-bot_add_ct "headtr1ck";bot_add_ct "alex666";bot_add_ct "npl";bot_add_ct "kensizor";bot_add_ct "esenthial";mp_teamlogo_1 b8;mp_teamname_1 B8
+bot_add_ct "s1zzi";bot_add_ct "alex666";bot_add_ct "npl";bot_add_ct "kensizor";bot_add_ct "esenthial";mp_teamlogo_1 b8;mp_teamname_1 B8
 
-bot_add_t "headtr1ck";bot_add_t "alex666";bot_add_t "npl";bot_add_t "kensizor";bot_add_t "esenthial";mp_teamlogo_2 b8;mp_teamname_2 B8
+bot_add_t "s1zzi";bot_add_t "alex666";bot_add_t "npl";bot_add_t "kensizor";bot_add_t "esenthial";mp_teamlogo_2 b8;mp_teamname_2 B8
 
 12. 3DMAX
 
-bot_add_ct "bodyy";bot_add_ct "Maka";bot_add_ct "Lucky";bot_add_ct "Ex3rcice";bot_add_ct "Graviti";mp_teamlogo_1 3dm;mp_teamname_1 3DMAX
+bot_add_ct "misutaaa";bot_add_ct "Maka";bot_add_ct "Lucky";bot_add_ct "Ex3rcice";bot_add_ct "Graviti";mp_teamlogo_1 3dm;mp_teamname_1 3DMAX
 
-bot_add_t "bodyy";bot_add_t "Maka";bot_add_t "Lucky";bot_add_t "Ex3rcice";bot_add_t "Graviti";mp_teamlogo_2 3dm;mp_teamname_2 3DMAX
+bot_add_t "misutaaa";bot_add_t "Maka";bot_add_t "Lucky";bot_add_t "Ex3rcice";bot_add_t "Graviti";mp_teamlogo_2 3dm;mp_teamname_2 3DMAX
 
 13. paiN Gaming
 
-bot_add_ct "vsm";bot_add_ct "biguzera";bot_add_ct "piriajr";bot_add_ct "nqz";bot_add_ct "snow";mp_teamlogo_1 pain;mp_teamname_1 paiN Gaming
+bot_add_ct "vsm";bot_add_ct "biguzera";bot_add_ct "piriajr";bot_add_ct "saffee";bot_add_ct "snow";mp_teamlogo_1 pain;mp_teamname_1 paiN Gaming
 
-bot_add_t "vsm";bot_add_t "biguzera";bot_add_t "piriajr";bot_add_t "nqz";bot_add_t "snow";mp_teamlogo_2 pain;mp_teamname_2 paiN Gaming
+bot_add_t "vsm";bot_add_t "biguzera";bot_add_t "piriajr";bot_add_t "saffee";bot_add_t "snow";mp_teamlogo_2 pain;mp_teamname_2 paiN Gaming
 
 14. Astralis
 
@@ -102,9 +102,9 @@ bot_add_t "NAF";bot_add_t "EliGE";bot_add_t "malbsMd";bot_add_t "siuhy";bot_add_
 
 16. Passion UA
 
-bot_add_ct "JT";bot_add_ct "try";bot_add_ct "Senzu";bot_add_ct "Kvem";bot_add_ct "nicx";mp_teamlogo_1 psnu;mp_teamname_1 Passion UA
+bot_add_ct "JT";bot_add_ct "try";bot_add_ct "sdy";bot_add_ct "Kvem";bot_add_ct "nicx";mp_teamlogo_1 psnu;mp_teamname_1 Passion UA
 
-bot_add_t "JT";bot_add_t "try";bot_add_t "Senzu";bot_add_t "Kvem";bot_add_t "nicx";mp_teamlogo_2 psnu;mp_teamname_2 Passion UA
+bot_add_t "JT";bot_add_t "try";bot_add_t "sdy";bot_add_t "Kvem";bot_add_t "nicx";mp_teamlogo_2 psnu;mp_teamname_2 Passion UA
 
 17. Legacy
 
@@ -114,9 +114,9 @@ bot_add_t "dumau";bot_add_t "latto";bot_add_t "n1ssim";bot_add_t "arT";bot_add_t
 
 18. Imperial
 
-bot_add_ct "chelo";bot_add_ct "VINI";bot_add_ct "skullz";bot_add_ct "levi";bot_add_ct "noway";mp_teamlogo_1 imp;mp_teamname_1 Imperial
+bot_add_ct "chelo";bot_add_ct "VINI";bot_add_ct "decenty";bot_add_ct "levi";bot_add_ct "noway";mp_teamlogo_1 imp;mp_teamname_1 Imperial
 
-bot_add_t "chelo";bot_add_t "VINI";bot_add_t "skullz";bot_add_t "levi";bot_add_t "noway";mp_teamlogo_2 imp;mp_teamname_2 Imperial
+bot_add_t "chelo";bot_add_t "VINI";bot_add_t "decenty";bot_add_t "levi";bot_add_t "noway";mp_teamlogo_2 imp;mp_teamname_2 Imperial
 
 19. PARIVISION
 
@@ -144,9 +144,9 @@ bot_add_t "FL1T";bot_add_t "Perfecto";bot_add_t "fame";bot_add_t "b1st";bot_add_
 
 23. Ninjas in Pyjamas
 
-bot_add_ct "Snappi";bot_add_ct "sjuush";bot_add_ct "r1nkle";bot_add_ct "xKacpersky";bot_add_ct "cairne";mp_teamlogo_1 nip;mp_teamname_1 Ninjas in Pyjamas
+bot_add_ct "Snappi";bot_add_ct "sjuush";bot_add_ct "stavn";bot_add_ct "xKacpersky";bot_add_ct "cairne";mp_teamlogo_1 nip;mp_teamname_1 Ninjas in Pyjamas
 
-bot_add_t "Snappi";bot_add_t "sjuush";bot_add_t "r1nkle";bot_add_t "xKacpersky";bot_add_t "cairne";mp_teamlogo_2 nip;mp_teamname_2 Ninjas in Pyjamas
+bot_add_t "Snappi";bot_add_t "sjuush";bot_add_t "stavn";bot_add_t "xKacpersky";bot_add_t "cairne";mp_teamlogo_2 nip;mp_teamname_2 Ninjas in Pyjamas
 
 24. HEROIC
 
@@ -156,9 +156,9 @@ bot_add_t "xfl0ud";bot_add_t "nilo";bot_add_t "susp";bot_add_t "Chr1zN";bot_add_
 
 25. Lynn Vision
 
-bot_add_ct "Westmelon";bot_add_ct "z4kr";bot_add_ct "Starry";bot_add_ct "EmiliaQAQ";bot_add_ct "C4LLM3SU3";mp_teamlogo_1 lynn;mp_teamname_1 Lynn Vision
+bot_add_ct "Westmelon";bot_add_ct "z4KR";bot_add_ct "Starry";bot_add_ct "EmiliaQAQ";bot_add_ct "C4LLM3SU3";mp_teamlogo_1 lynn;mp_teamname_1 Lynn Vision
 
-bot_add_t "Westmelon";bot_add_t "z4kr";bot_add_t "Starry";bot_add_t "EmiliaQAQ";bot_add_t "C4LLM3SU3";mp_teamlogo_2 lynn;mp_teamname_2 Lynn Vision
+bot_add_t "Westmelon";bot_add_t "z4KR";bot_add_t "Starry";bot_add_t "EmiliaQAQ";bot_add_t "C4LLM3SU3";mp_teamlogo_2 lynn;mp_teamname_2 Lynn Vision
 
 26. NRG
 
@@ -168,9 +168,9 @@ bot_add_t "nitr0";bot_add_t "Sonic";bot_add_t "oSee";bot_add_t "br0";bot_add_t "
 
 27. BetBoom
 
-bot_add_ct "Boombl4";bot_add_ct "S1ren";bot_add_ct "d1Ledez";bot_add_ct "ArtFr0st";bot_add_ct "Magnojez";mp_teamlogo_1 bb;mp_teamname_1 BetBoom
+bot_add_ct "Boombl4";bot_add_ct "S1ren";bot_add_ct "d1Ledez";bot_add_ct "zorte";bot_add_ct "Magnojez";mp_teamlogo_1 bb;mp_teamname_1 BetBoom
 
-bot_add_t "Boombl4";bot_add_t "S1ren";bot_add_t "d1Ledez";bot_add_t "ArtFr0st";bot_add_t "Magnojez";mp_teamlogo_2 bb;mp_teamname_2 BetBoom
+bot_add_t "Boombl4";bot_add_t "S1ren";bot_add_t "d1Ledez";bot_add_t "zorte";bot_add_t "Magnojez";mp_teamlogo_2 bb;mp_teamname_2 BetBoom
 
 28. FlyQuest
 
@@ -180,9 +180,9 @@ bot_add_t "jks";bot_add_t "INS";bot_add_t "Vexite";bot_add_t "nettik";bot_add_t 
 
 29. fnatic
 
-bot_add_ct "KRIMZ";bot_add_ct "Maden";bot_add_ct "fEAR";bot_add_ct "jambo";bot_add_ct "jackasmo";mp_teamlogo_1 fntc;mp_teamname_1 fnatic
+bot_add_ct "KRIMZ";bot_add_ct "Br4tkO";bot_add_ct "fEAR";bot_add_ct "jambo";bot_add_ct "jackasmo";mp_teamlogo_1 fntc;mp_teamname_1 fnatic
 
-bot_add_t "KRIMZ";bot_add_t "Maden";bot_add_t "fEAR";bot_add_t "jambo";bot_add_t "jackasmo";mp_teamlogo_2 fntc;mp_teamname_2 fnatic
+bot_add_t "KRIMZ";bot_add_t "Br4tkO";bot_add_t "fEAR";bot_add_t "jambo";bot_add_t "jackasmo";mp_teamlogo_2 fntc;mp_teamname_2 fnatic
 
 30. TYLOO
 
@@ -210,14 +210,14 @@ bot_add_t "Bymas";bot_add_t "afro";bot_add_t "Gizmy";bot_add_t "AZUWU";bot_add_t
 
 34. BESTIA
 
-bot_add_ct "Noktse";bot_add_ct "cass1n";bot_add_ct "buda";bot_add_ct "tomaszin";bot_add_ct "timo";mp_teamlogo_1 bes;mp_teamname_1 BESTIA
+bot_add_ct "nacho";bot_add_ct "cass1n";bot_add_ct "buda";bot_add_ct "tomaszin";bot_add_ct "timo";mp_teamlogo_1 bes;mp_teamname_1 BESTIA
 
-bot_add_t "Noktse";bot_add_t "cass1n";bot_add_t "buda";bot_add_t "tomaszin";bot_add_t "timo";mp_teamlogo_2 bes;mp_teamname_2 BESTIA
+bot_add_t "nacho";bot_add_t "cass1n";bot_add_t "buda";bot_add_t "tomaszin";bot_add_t "timo";mp_teamlogo_2 bes;mp_teamname_2 BESTIA
 
 35. ENCE
 
-bot_add_ct "sdy";bot_add_ct "F1KU";bot_add_ct "kRaSnaL";bot_add_ct "podi";bot_add_ct "Neityu";mp_teamlogo_1 ence;mp_teamname_1 ENCE
-bot_add_t "sdy";bot_add_t "F1KU";bot_add_t "kRaSnaL";bot_add_t "podi";bot_add_t "Neityu";mp_teamlogo_2 ence;mp_teamname_2 ENCE
+bot_add_ct "HENU";bot_add_ct "millert";bot_add_ct "teme";bot_add_ct "Cliqq";bot_add_ct "Schwarz";mp_teamlogo_1 ence;mp_teamname_1 ENCE
+bot_add_t "HENU";bot_add_t "millert";bot_add_t "teme";bot_add_t "Cliqq";bot_add_t "Schwarz";mp_teamlogo_2 ence;mp_teamname_2 ENCE
 
 36. ECSTATIC
 
@@ -227,21 +227,21 @@ bot_add_t "TMB";bot_add_t "nicoodoz";bot_add_t "Anelele";bot_add_t "Buzz";bot_ad
 
 37. Rare Atom
 
-bot_add_ct "Summer";bot_add_ct "x9";bot_add_ct "TiGeR";bot_add_ct "L1haNg";bot_add_ct "chengking";mp_teamlogo_1 ratm;mp_teamname_1 Rare Atom
+bot_add_ct "Summer";bot_add_ct "3gl";bot_add_ct "Trash";bot_add_ct "L1haNg";bot_add_ct "chengking";mp_teamlogo_1 ratm;mp_teamname_1 Rare Atom
 
-bot_add_t "Summer";bot_add_t "x9";bot_add_t "TiGeR";bot_add_t "L1haNg";bot_add_t "chengking";mp_teamlogo_2 ratm;mp_teamname_2 Rare Atom
+bot_add_t "Summer";bot_add_t "3gl";bot_add_t "Trash";bot_add_t "L1haNg";bot_add_t "chengking";mp_teamlogo_2 ratm;mp_teamname_2 Rare Atom
 
 38. OG
 
-bot_add_ct "cadiaN";bot_add_ct "spooke";bot_add_ct "arrozd0ce";bot_add_ct "adamb";bot_add_ct "FL4MUS";mp_teamlogo_1 og;mp_teamname_1 OG
+bot_add_ct "cadiaN";bot_add_ct "spooke";bot_add_ct "arrozdoce";bot_add_ct "adamb";bot_add_ct "bodyy";mp_teamlogo_1 og;mp_teamname_1 OG
 
-bot_add_t "cadiaN";bot_add_t "spooke";bot_add_t "arrozd0ce";bot_add_t "adamb";bot_add_t "FL4MUS";mp_teamlogo_2 og;mp_teamname_2 OG
+bot_add_t "cadiaN";bot_add_t "spooke";bot_add_t "arrozdoce";bot_add_t "adamb";bot_add_t "bodyy";mp_teamlogo_2 og;mp_teamname_2 OG
 
 39. 100 Thieves
 
-bot_add_ct "Ag1l";bot_add_ct "dev1ce";bot_add_ct "poiii";bot_add_ct "sirah";bot_add_ct "rain";mp_teamlogo_1 thv;mp_teamname_1 100 Thieves
+bot_add_ct "Ag1l";bot_add_ct "device";bot_add_ct "poiii";bot_add_ct "sirah";bot_add_ct "rain";mp_teamlogo_1 thv;mp_teamname_1 100 Thieves
 
-bot_add_t "Ag1l";bot_add_t "dev1ce";bot_add_t "poiii";bot_add_t "sirah";bot_add_t "rain";mp_teamlogo_2 thv;mp_teamname_2 100 Thieves
+bot_add_t "Ag1l";bot_add_t "device";bot_add_t "poiii";bot_add_t "sirah";bot_add_t "rain";mp_teamlogo_2 thv;mp_teamname_2 100 Thieves
 
 40. BIG
 
