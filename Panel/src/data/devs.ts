@@ -1,0 +1,38 @@
+// Project link and the contributor credits shown in the Devs menu.
+export const PROJECT_URL = "https://github.com/ed0ard/CS2-Bot-Improver";
+
+// Contributors, in the order shown.
+export const DEVS: string[] = [
+  "ed0ard",
+  "newbie046",
+  "XBribo",
+  "Misaka17032",
+  "YYBN",
+  "htfy96",
+  "DANK1NG1I45l4",
+  "XYC_KL",
+  "WanderDream",
+  "Gardevior",
+  "droyer57",
+  "T1mLuk0",
+  "Ch1ANnn1",
+  "HoshinoSatoshi",
+  "NJ",
+  "xuan",
+  "luochenlinyu",
+  "jessie",
+  "Floretteee",
+  "YuGeYu",
+  "Aurelius47",
+  "B1gcul",
+  "Kzen",
+  "tht",
+  "Mark William",
+  "Jw1zxm",
+  "Austin",
+  "StefanKunde",
+  "Manico",
+  "Zhang Weiwei",
+  "Omertosa",
+  "OLDSIX",
+];
