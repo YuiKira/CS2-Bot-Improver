@@ -66,7 +66,7 @@ Bots won't throw any nades
 Bots follow almost the same count limits as human players (default)
 
 `bot_nades more`  
-Bots use the same decision logic as normal mode with higher count limits (recommended)
+Bots use the same decision logic as normal mode with higher count limits
 
 `bot_nades max`  
 Bots have minimal limitations and think less before throwing nades
