@@ -17,7 +17,7 @@ namespace BotAimImprover;
 public class BotAimImprover : BasePlugin
 {
     public override string ModuleName => "BotAimImprover";
-    public override string ModuleVersion => "2.1.0";
+    public override string ModuleVersion => "2.1.1";
     public override string ModuleAuthor => "ed0ard & htfy96";
     public override string ModuleDescription => "Restores intelligent aim part selection for CS2 bots.";
 
@@ -272,12 +272,7 @@ public class BotAimImprover : BasePlugin
 
             string? wpn = botController.PlayerPawn?.Value?.WeaponServices?.ActiveWeapon?.Value?.DesignerName;
 
-            // 4) Compute visible derived points by raytrace from the bot's eye.
-            var visiblePoints = ComputeVisiblePoints(botEye, enemyPawn);
-            if (visiblePoints.Count == 0)
-                return HookResult.Continue;
-
-            // 5) Select the priority order based on aim mode and weapon, then pick.
+            // 4) Select the priority order based on aim mode and weapon.
             // head: awp -> others -> Head. body: all weapons -> Body.
             // mixed: body-first weapons -> Body, others -> Jaw.
             bool isBodyWeapon = wpn != null && _bodyFirstWeapons.Contains(wpn);
@@ -288,13 +283,24 @@ public class BotAimImprover : BasePlugin
                 _            => isBodyWeapon ? _priorityBody : _priorityJaw, // MIXED
             };
 
-            int chosenIdx = PickBestPoint(visiblePoints, order);
-
-            // 6) Compute chosen point world position.
-            if (!TryComputePartPos(enemyPawn, chosenIdx, out float rx, out float ry, out float rz))
+            // 5) Walk the priority order and raytrace each point from the bot's
+            // eye; the first visible point wins.
+            int chosenIdx = -1;
+            float rx = 0f, ry = 0f, rz = 0f;
+            foreach (int idx in order)
+            {
+                if (!TryComputePartPos(enemyPawn, idx, out float x, out float y, out float z))
+                    continue;
+                if (!PointVisibleFromEye(botEye, x, y, z))
+                    continue;
+                chosenIdx = idx;
+                rx = x; ry = y; rz = z;
+                break;
+            }
+            if (chosenIdx < 0)
                 return HookResult.Continue;
 
-            // 7) Overwrite only m_targetSpot.xyz.
+            // 6) Overwrite only m_targetSpot.xyz.
             unsafe
             {
                 float* dst = (float*)(pCCSBot + _off.TargetSpot).ToPointer();
@@ -306,8 +312,8 @@ public class BotAimImprover : BasePlugin
             {
                 _firstOverrideLogged = true;
                 Logger.LogInformation(
-                    "[BotAimImprover] Active: first override (visible={N} weapon={W} point={P}).",
-                    visiblePoints.Count, wpn ?? "(null)", _aimPoints[chosenIdx].Name);
+                    "[BotAimImprover] Active: first override (weapon={W} point={P}).",
+                    wpn ?? "(null)", _aimPoints[chosenIdx].Name);
             }
         }
         catch (Exception ex)
@@ -352,32 +358,6 @@ public class BotAimImprover : BasePlugin
             }
         }
         return null;
-    }
-
-    // Pick the highest-priority visible point. Walks the priority order and returns
-    // the first index that is in the visible set. Returns -1 if none.
-    private static int PickBestPoint(List<int> visible, int[] order)
-    {
-        if (visible.Count == 0) return -1;
-
-        foreach (int idx in order)
-            if (visible.Contains(idx))
-                return idx;
-        return -1;
-    }
-
-    // Returns the list of visible derived-point indices (eye -> point, world-only LoS).
-    private List<int> ComputeVisiblePoints(Vector botEye, CCSPlayerPawn enemyPawn)
-    {
-        var visible = new List<int>(_aimPoints.Length);
-        for (int i = 0; i < _aimPoints.Length; i++)
-        {
-            if (!TryComputePartPos(enemyPawn, i, out float x, out float y, out float z))
-                continue;
-            if (PointVisibleFromEye(botEye, x, y, z))
-                visible.Add(i);
-        }
-        return visible;
     }
 
     // Bot eye position = bot pawn origin + view offset Z.
