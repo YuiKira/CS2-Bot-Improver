@@ -19,8 +19,8 @@ public class BotState : BasePlugin
     public override string ModuleAuthor => "ed0ard & XBribo";
     public override string ModuleDescription => "Make bots smarter";
 
-    private const float ExpandedValue = 50f;
-    private const float NormalValue = 50f;
+    private const float ExpandedValue = 200f;
+    private const float NormalValue = 200f;
     private const float RestoreDelay = 1.0f;
 
     private bool _isExpanded = false;

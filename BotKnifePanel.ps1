@@ -18,7 +18,7 @@ $script:KnifeTypes = @(
     @{ Id = 517; Name = "系绳匕首" },
     @{ Id = 518; Name = "求生匕首" },
     @{ Id = 519; Name = "熊刀" },
-    @{ Id = 520; Name = "娜瓦哈刀" },
+    @{ Id = 520; Name = "折叠刀" },
     @{ Id = 521; Name = "流浪者匕首" },
     @{ Id = 522; Name = "短剑" },
     @{ Id = 523; Name = "锯齿爪刀" },
