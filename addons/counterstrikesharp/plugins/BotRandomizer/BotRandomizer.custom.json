@@ -1,0 +1,12 @@
+{
+  "knife_def_indexes": [
+    507,
+    515
+  ],
+  "knife_paint_kits": [
+    415,
+    416
+  ],
+  "auto_drop_bot_knife_copy": true,
+  "drop_delay_seconds": 1.0
+}

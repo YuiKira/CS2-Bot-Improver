@@ -121,8 +121,6 @@ public class NadeSystemPlugin : BasePlugin
     private HashSet<uint>         _poorBots          = new();
     // Information System
     private Dictionary<string, float> _probFailCooldown = new();
-    // flash immunity
-    private Dictionary<uint, float> _botFlashImmunityUntil = new();
     // Ray-Trace interface
     private static readonly PluginCapability<CRayTraceInterface> _rayTraceCapability =
         new("raytrace:craytraceinterface");
@@ -283,7 +281,6 @@ public class NadeSystemPlugin : BasePlugin
         RegisterEventHandler<EventBombBegindefuse>(OnBombBeginDefuse);
         RegisterEventHandler<EventBombBeginplant>(OnBombBeginPlant);
         RegisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
-        RegisterEventHandler<EventPlayerBlind>(OnPlayerBlind);
         RegisterEventHandler<EventWeaponFire>(OnWeaponFire);
         RegisterEventHandler<EventWeaponReload>(OnWeaponReload);
         RegisterEventHandler<EventWeaponZoom>(OnWeaponZoom);
@@ -943,15 +940,6 @@ public class NadeSystemPlugin : BasePlugin
                     flash.Teleport(origin, angles, velocity);
                     flash.DispatchSpawn();
                     flash.Teleport(origin, angles, velocity);
-                    // Flash Immunity
-                    float immuneUntil = Server.CurrentTime + 2f;
-                    foreach (var teammate in Utilities
-                        .FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
-                    {
-                        if (!teammate.IsValid || !teammate.IsBot) continue;
-                        if ((int)teammate.TeamNum != (int)bot.TeamNum) continue;
-                        _botFlashImmunityUntil[(uint)teammate.Index] = immuneUntil;
-                    }
                     Server.PrintToConsole(
                         $"[NadeSystem] Replayed [flash] id={g.Id[..8]}... " +
                         $"bot=[{bot.PlayerName}] " +
@@ -1199,7 +1187,6 @@ public class NadeSystemPlugin : BasePlugin
         _earlySmokeCountByTeam.Clear();
         _botInFlashZone.Clear();
         _botFlashRatioWindow.Clear();
-        _botFlashImmunityUntil.Clear();
         _molotovEscapeSmokeCooldown.Clear();
         _retaliationCooldown.Clear();
         // Information System
@@ -1267,41 +1254,6 @@ public class NadeSystemPlugin : BasePlugin
                 + costTable["he"]
                 + costTable["molotov"];
         return cap;
-    }
-    // Don't blind ourselves and our teammates
-    private HookResult OnPlayerBlind(EventPlayerBlind @event, GameEventInfo info)
-    {
-        var victim   = @event.Userid;
-
-        if (victim is null || !victim.IsValid || !victim.IsBot)
-            return HookResult.Continue;
-        // In case the bot has been taken over
-        bool isTakenOver = victim.HasBeenControlledByPlayerThisRound;
-        if (isTakenOver)
-            return HookResult.Continue;
-
-        var pawn = victim.PlayerPawn?.Value;
-        if (_botFlashImmunityUntil.TryGetValue((uint)victim.Index, out float immuneUntil)
-            && Server.CurrentTime <= immuneUntil)
-        {
-            if (pawn != null && pawn.IsValid)
-            {
-                @event.BlindDuration = 0f;
-
-                ref float blindStartTime = ref pawn.BlindStartTime;
-                blindStartTime = 0f;
-
-                ref float blindUntilTime = ref pawn.BlindUntilTime;
-                blindUntilTime = 0f;
-
-                ref float flashDuration = ref pawn.FlashDuration;
-                flashDuration = 0f;
-
-                ref float flashMaxAlpha = ref pawn.FlashMaxAlpha;
-                flashMaxAlpha = 0f;
-            }
-        }
-        return HookResult.Continue;
     }
     // bot_nades convar
     private void CmdBotNades(CCSPlayerController? player, CommandInfo info)
@@ -1783,8 +1735,6 @@ public class NadeSystemPlugin : BasePlugin
             if (Random.Shared.NextDouble() < 0.20)
             {
                 _defuseFlashUsed = true;
-                // Don't flash yourself
-                _botFlashImmunityUntil[(uint)bot.Index] = Server.CurrentTime + 2f;
                 var flashVel = new Vector(0f, 0f, -800f);
                 TrySpawnInstantGrenade(bot, spawnPos, "flash", flashVel);
             }
