@@ -101,7 +101,7 @@ public class RoundCounter
 public class NadeSystemPlugin : BasePlugin
 {
     public override string ModuleName    => "NadeSystem";
-    public override string ModuleVersion => "1.1.4";
+    public override string ModuleVersion => "1.1.5";
     public override string ModuleAuthor  => "ed0ard";
 
     // grenades folder lives inside the plugin directory
@@ -121,6 +121,8 @@ public class NadeSystemPlugin : BasePlugin
     private HashSet<uint>         _poorBots          = new();
     // Information System
     private Dictionary<string, float> _probFailCooldown = new();
+    // flash immunity
+    private Dictionary<uint, float> _botFlashImmunityUntil = new();
     // Ray-Trace interface
     private static readonly PluginCapability<CRayTraceInterface> _rayTraceCapability =
         new("raytrace:craytraceinterface");
@@ -277,10 +279,13 @@ public class NadeSystemPlugin : BasePlugin
         RegisterEventHandler<EventRoundStart>(OnRoundStart);
         RegisterEventHandler<EventRoundFreezeEnd>(OnFreezeEnd);
         RegisterEventHandler<EventRoundEnd>(OnRoundEnd);
+        RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
         RegisterListener<Listeners.OnTick>(OnTick);
         RegisterEventHandler<EventBombBegindefuse>(OnBombBeginDefuse);
         RegisterEventHandler<EventBombBeginplant>(OnBombBeginPlant);
         RegisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
+        // Bot flash immunity is intentionally disabled in the custom build.
+        // Let BotState's normal-player flash avoidance decide whether bots get blinded.
         RegisterEventHandler<EventWeaponFire>(OnWeaponFire);
         RegisterEventHandler<EventWeaponReload>(OnWeaponReload);
         RegisterEventHandler<EventWeaponZoom>(OnWeaponZoom);
@@ -606,6 +611,13 @@ public class NadeSystemPlugin : BasePlugin
             list = new List<SoundPoint>();
             _soundPoints[idx] = list;
         }
+        // Dedup: skip if within 1u of the last point. Repeated sound made in place
+        if (list.Count > 0)
+        {
+            var last = list[^1];
+            float ddx = ox - last.X, ddy = oy - last.Y, ddz = oz - last.Z;
+            if (ddx * ddx + ddy * ddy + ddz * ddz < 1f) return;
+        }
         list.Add(new SoundPoint(ox, oy, oz));
     }
 
@@ -645,7 +657,8 @@ public class NadeSystemPlugin : BasePlugin
     // Per-tick maintenance of every player's sound trail.
     // Delete sound points that are now farther than SoundInfoRadius from the player.
     // Add a fresh point if the player is currently making footstep sound (speed > threshold).
-    private void UpdateSoundTrails()
+    // Pruning + dead-player cleanup run every call; footstep recording is throttled by the caller to every 4 ticks.
+    private void UpdateSoundTrails(bool recordFootsteps)
     {
         var allPlayers = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller").ToList();
         foreach (var p in allPlayers)
@@ -676,12 +689,15 @@ public class NadeSystemPlugin : BasePlugin
             }
 
             // Footstep sound: horizontal speed above threshold.
-            var vel = pawn.AbsVelocity;
-            if (vel != null)
+            if (recordFootsteps)
             {
-                float speed2 = vel.X * vel.X + vel.Y * vel.Y;
-                if (speed2 > FootstepSpeedThreshold * FootstepSpeedThreshold)
-                    RecordSoundPoint(p, allPlayers);
+                var vel = pawn.AbsVelocity;
+                if (vel != null)
+                {
+                    float speed2 = vel.X * vel.X + vel.Y * vel.Y;
+                    if (speed2 > FootstepSpeedThreshold * FootstepSpeedThreshold)
+                        RecordSoundPoint(p, allPlayers);
+                }
             }
         }
     }
@@ -940,6 +956,15 @@ public class NadeSystemPlugin : BasePlugin
                     flash.Teleport(origin, angles, velocity);
                     flash.DispatchSpawn();
                     flash.Teleport(origin, angles, velocity);
+                    // Flash Immunity
+                    float immuneUntil = Server.CurrentTime + 2f;
+                    foreach (var teammate in Utilities
+                        .FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller"))
+                    {
+                        if (!teammate.IsValid || !teammate.IsBot) continue;
+                        if ((int)teammate.TeamNum != (int)bot.TeamNum) continue;
+                        _botFlashImmunityUntil[(uint)teammate.Index] = immuneUntil;
+                    }
                     Server.PrintToConsole(
                         $"[NadeSystem] Replayed [flash] id={g.Id[..8]}... " +
                         $"bot=[{bot.PlayerName}] " +
@@ -1187,6 +1212,7 @@ public class NadeSystemPlugin : BasePlugin
         _earlySmokeCountByTeam.Clear();
         _botInFlashZone.Clear();
         _botFlashRatioWindow.Clear();
+        _botFlashImmunityUntil.Clear();
         _molotovEscapeSmokeCooldown.Clear();
         _retaliationCooldown.Clear();
         // Information System
@@ -1218,6 +1244,15 @@ public class NadeSystemPlugin : BasePlugin
     private HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
         _roundOver = true;
+        return HookResult.Continue;
+    }
+
+    // A dead player makes no more sound, so drop their trail immediately
+    private HookResult OnPlayerDeath(EventPlayerDeath @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (player != null && player.IsValid)
+            _soundPoints.Remove((uint)player.Index);
         return HookResult.Continue;
     }
 
@@ -1254,6 +1289,41 @@ public class NadeSystemPlugin : BasePlugin
                 + costTable["he"]
                 + costTable["molotov"];
         return cap;
+    }
+    // Don't blind ourselves and our teammates
+    private HookResult OnPlayerBlind(EventPlayerBlind @event, GameEventInfo info)
+    {
+        var victim   = @event.Userid;
+
+        if (victim is null || !victim.IsValid || !victim.IsBot)
+            return HookResult.Continue;
+        // In case the bot has been taken over
+        bool isTakenOver = victim.HasBeenControlledByPlayerThisRound;
+        if (isTakenOver)
+            return HookResult.Continue;
+
+        var pawn = victim.PlayerPawn?.Value;
+        if (_botFlashImmunityUntil.TryGetValue((uint)victim.Index, out float immuneUntil)
+            && Server.CurrentTime <= immuneUntil)
+        {
+            if (pawn != null && pawn.IsValid)
+            {
+                @event.BlindDuration = 0f;
+
+                ref float blindStartTime = ref pawn.BlindStartTime;
+                blindStartTime = 0f;
+
+                ref float blindUntilTime = ref pawn.BlindUntilTime;
+                blindUntilTime = 0f;
+
+                ref float flashDuration = ref pawn.FlashDuration;
+                flashDuration = 0f;
+
+                ref float flashMaxAlpha = ref pawn.FlashMaxAlpha;
+                flashMaxAlpha = 0f;
+            }
+        }
+        return HookResult.Continue;
     }
     // bot_nades convar
     private void CmdBotNades(CCSPlayerController? player, CommandInfo info)
@@ -1735,6 +1805,8 @@ public class NadeSystemPlugin : BasePlugin
             if (Random.Shared.NextDouble() < 0.20)
             {
                 _defuseFlashUsed = true;
+                // Don't flash yourself
+                _botFlashImmunityUntil[(uint)bot.Index] = Server.CurrentTime + 2f;
                 var flashVel = new Vector(0f, 0f, -800f);
                 TrySpawnInstantGrenade(bot, spawnPos, "flash", flashVel);
             }
@@ -1942,7 +2014,7 @@ public class NadeSystemPlugin : BasePlugin
     private void OnTick()
     {
         _tick++;
-        UpdateSoundTrails(); // every tick: maintain sound trail for all players
+        UpdateSoundTrails(_tick % 4 == 0);
         if (_tick % 4   == 0) CheckBotZones();
         if (_tick % 256 == 0) PruneCooldowns();
     }
