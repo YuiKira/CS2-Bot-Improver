@@ -92,6 +92,16 @@ public class BotAimImprover : BasePlugin
         12, 13, 14, 15,  // L_THIGH, R_THIGH, L_SHIN, R_SHIN
         16               // FEET
     };
+
+    private static readonly int[] _priorityMixedSoft =
+    {
+        3, 2, 4,         // CHEST, JAW, GUT
+        1, 5, 0,         // NECK, PELVIS, HEAD
+        6, 7, 10, 11,    // L_CHEST, R_CHEST, L_GUT, R_GUT
+        8, 9,            // L_SHOULDER, R_SHOULDER
+        12, 13, 14, 15,  // L_THIGH, R_THIGH, L_SHIN, R_SHIN
+        16               // FEET
+    };
     // ============================================================
     // Platform-specific memory layout (PickNewAimSpot hook + CCSBot fields).
     //   Linux  libserver.so 2026-05-28
@@ -278,13 +288,13 @@ public class BotAimImprover : BasePlugin
 
             // 4) Select the priority order based on aim mode and weapon.
             // head: awp -> others -> Head. body: all weapons -> Body.
-            // mixed: body-first weapons -> Body, others -> Jaw.
+            // mixed: body-first weapons -> Body, others -> softer chest/jaw mix.
             bool isBodyWeapon = wpn != null && _bodyFirstWeapons.Contains(wpn);
             int[] order = _aimMode switch
             {
                 AimMode.HEAD => wpn == "weapon_awp" ? _priorityBody : _priorityHead,
                 AimMode.BODY => _priorityBody,
-                _ => isBodyWeapon ? _priorityBody : _priorityJaw, // MIXED
+                _ => isBodyWeapon ? _priorityBody : _priorityMixedSoft, // MIXED
             };
 
             // 5) Walk the priority order and raytrace each point from the bot's

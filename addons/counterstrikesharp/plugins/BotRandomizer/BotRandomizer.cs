@@ -1,15 +1,35 @@
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Core.Capabilities;
+using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
+using RayTraceAPI;
 
 namespace BotRandomizer;
+
+public sealed class BotRandomizerCustomConfig
+{
+    [JsonPropertyName("knife_def_indexes")]
+    public List<ushort> KnifeDefIndexes { get; set; } = new() { 507, 515 };
+
+    [JsonPropertyName("knife_paint_kits")]
+    public List<int> KnifePaintKits { get; set; } = new() { 415, 416 };
+
+    [JsonPropertyName("auto_drop_bot_knife_copy")]
+    public bool AutoDropBotKnifeCopy { get; set; } = true;
+
+    [JsonPropertyName("drop_delay_seconds")]
+    public float DropDelaySeconds { get; set; } = 1.0f;
+}
 
 public class BotRandomizerPlugin : BasePlugin
 {
@@ -21,9 +41,23 @@ public class BotRandomizerPlugin : BasePlugin
     private readonly Random _rng = new();
     private readonly Dictionary<int, string> _botModels = new();
     private readonly Dictionary<int, int> _botKits = new();
-    private readonly Dictionary<int, int> _botKnives = new();
+    private readonly Dictionary<int, ushort> _botKnives = new();
     private readonly Dictionary<int, int> _botKnifePaints = new();
     private readonly Dictionary<int, int> _botGloves = new();
+    private readonly HashSet<int> _droppedKnifeCopySlots = new();
+    private readonly HashSet<uint> _droppedKnifeCopyRaws = new();
+    private readonly HashSet<int> _knifePickupFixSlots = new();
+    private readonly HashSet<int> _restoringKnifeSlots = new();
+    private BotRandomizerCustomConfig _customConfig = new();
+    private const int KnifeCopiesPerBot = 5;
+    private const float KnifeDropBackDistance = 100f;
+    private const float KnifeDropSideSpacing = 64f;
+    private const float KnifeDropHeightOffset = 8f;
+    private static readonly float[] KnifeDropDistanceCandidates = { 100f, 72f, 48f, 128f };
+    private static readonly float[] KnifeDropSideScales = { 1.0f, 0.65f, 0.35f, 0.0f };
+    private static readonly float[] KnifeDropDirectionCandidates = { 180f, 135f, -135f, 90f, -90f, 45f, -45f, 0f };
+    private static readonly PluginCapability<CRayTraceInterface> RayTraceCapability =
+        new("raytrace:craytraceinterface");
 
     private MemoryFunctionVoid<nint, string, float>? _setAttrByName;
     private ulong _nextItemId = 0xF00DCAFE;
@@ -40,8 +74,7 @@ public class BotRandomizerPlugin : BasePlugin
     // several places (the GiveNamedItem hook plus spawn timers); 
     private readonly Dictionary<(int Slot, ushort DefIndex), int> _botGunPaints = new();
 
-    // Knife-universal paint kit ids. Validated against skins_en.json to work on
-    // all 4 knife subclasses (bayonet, karambit, m9, butterfly).
+    // Knife-universal paint kit ids. The custom panel writes a subset of these.
     private static readonly int[] KnifePaints =
     {
         5,    // Forest DDPAT
@@ -60,15 +93,18 @@ public class BotRandomizerPlugin : BasePlugin
         409,  // Tiger Tooth
         413,  // Marble Fade
         414,  // Rust Coat
-        415,  // Doppler Phase 1
-        418,  // Doppler Ruby
-        420,  // Doppler Black Pearl
-        421,  // Doppler Sapphire
-        568,  // Gamma Doppler Phase 1
-        569,  // Gamma Doppler Emerald
-        570,  // Gamma Doppler Phase 3
-        571,  // Gamma Doppler Phase 4
-        572,  // Gamma Doppler Phase 2
+        415,  // Doppler Ruby
+        416,  // Doppler Sapphire
+        417,  // Doppler Black Pearl
+        418,  // Doppler Phase 1
+        419,  // Doppler Phase 2
+        420,  // Doppler Phase 3
+        421,  // Doppler Phase 4
+        568,  // Gamma Doppler Emerald
+        569,  // Gamma Doppler Phase 1
+        570,  // Gamma Doppler Phase 2
+        571,  // Gamma Doppler Phase 3
+        572,  // Gamma Doppler Phase 4
     };
 
     private static readonly (ushort DefIndex, int PaintKit)[] Gloves =
@@ -145,9 +181,25 @@ public class BotRandomizerPlugin : BasePlugin
     private static readonly (string DesignerName, ushort DefIndex, string ModelPath)[] Knives =
     {
         ("weapon_bayonet",               500, "weapons/models/knife/bayonet/weapon_bayonet.vmdl"),
+        ("weapon_knife_css",             503, ""),
+        ("weapon_knife_flip",            505, ""),
+        ("weapon_knife_gut",             506, ""),
         ("weapon_knife_karambit",        507, "weapons/models/knife/karambit/weapon_knife_karambit.vmdl"),
         ("weapon_knife_m9_bayonet",      508, "weapons/models/knife/m9_bayonet/weapon_knife_m9_bayonet.vmdl"),
+        ("weapon_knife_tactical",        509, ""),
+        ("weapon_knife_falchion",        512, ""),
+        ("weapon_knife_survival_bowie",  514, ""),
         ("weapon_knife_butterfly",       515, "weapons/models/knife/butterfly/weapon_knife_butterfly.vmdl"),
+        ("weapon_knife_push",            516, ""),
+        ("weapon_knife_cord",            517, ""),
+        ("weapon_knife_canis",           518, ""),
+        ("weapon_knife_ursus",           519, ""),
+        ("weapon_knife_gypsy_jackknife", 520, ""),
+        ("weapon_knife_outdoor",         521, ""),
+        ("weapon_knife_stiletto",        522, ""),
+        ("weapon_knife_widowmaker",      523, ""),
+        ("weapon_knife_skeleton",        525, ""),
+        ("weapon_knife_kukri",           526, ""),
     };
 
     // Designer name → item definition index for every specific knife subclass.
@@ -284,6 +336,7 @@ public class BotRandomizerPlugin : BasePlugin
     {
         // Avoid generating too many logs
         _skinErrorLogged = false;
+        LoadCustomConfig();
         LoadLegacyPaints();
 
         try
@@ -301,20 +354,28 @@ public class BotRandomizerPlugin : BasePlugin
 
         RegisterListener<Listeners.OnMapStart>(_ =>
         {
+            LoadCustomConfig();
             _botModels.Clear();
             _botKits.Clear();
             _botKnives.Clear();
             _botKnifePaints.Clear();
             _botGloves.Clear();
             _botGunPaints.Clear();
+            _droppedKnifeCopySlots.Clear();
+            _droppedKnifeCopyRaws.Clear();
+            _knifePickupFixSlots.Clear();
+            _restoringKnifeSlots.Clear();
             foreach (var m in CtModels) Server.PrecacheModel(m);
             foreach (var m in TModels) Server.PrecacheModel(m);
         });
 
         RegisterEventHandler<EventPlayerSpawn>(OnPlayerSpawn);
+        RegisterEventHandler<EventRoundStart>(OnRoundStart);
+        RegisterEventHandler<EventRoundFreezeEnd>(OnRoundFreezeEnd);
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp, HookMode.Pre);
         RegisterEventHandler<EventPlayerTeam>(OnPlayerTeam);
         RegisterEventHandler<EventItemPickup>(OnItemPickup);
+        AddCommand("bot_randomizer_reload", "Reload BotRandomizer custom knife config", CmdReloadConfig);
 
         // Skin a bot's gun the instant the engine hands it the weapon.
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
@@ -326,6 +387,92 @@ public class BotRandomizerPlugin : BasePlugin
         // but this global function hook is not.
         VirtualFunctions.GiveNamedItemFunc.Unhook(OnGiveNamedItemPost, HookMode.Post);
     }
+
+    private string CustomConfigPath => Path.Combine(ModuleDirectory, "BotRandomizer.custom.json");
+
+    private static readonly JsonSerializerOptions CustomJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true,
+    };
+
+    private void CmdReloadConfig(CCSPlayerController? player, CommandInfo command)
+    {
+        LoadCustomConfig();
+        _botKnives.Clear();
+        _botKnifePaints.Clear();
+        command.ReplyToCommand("[BotRandomizer] Custom knife config reloaded.");
+    }
+
+    private void LoadCustomConfig()
+    {
+        try
+        {
+            if (!File.Exists(CustomConfigPath))
+                WriteCustomConfig(new BotRandomizerCustomConfig());
+
+            var text = File.ReadAllText(CustomConfigPath);
+            var config = JsonSerializer.Deserialize<BotRandomizerCustomConfig>(text, CustomJsonOptions)
+                ?? new BotRandomizerCustomConfig();
+            _customConfig = NormalizeCustomConfig(config);
+            WriteCustomConfig(_customConfig);
+        }
+        catch (Exception ex)
+        {
+            _customConfig = NormalizeCustomConfig(new BotRandomizerCustomConfig());
+            Logger.LogError($"[BotRandomizer] Failed to load custom config: {ex.Message}");
+        }
+    }
+
+    private void WriteCustomConfig(BotRandomizerCustomConfig config)
+    {
+        File.WriteAllText(CustomConfigPath, JsonSerializer.Serialize(config, CustomJsonOptions));
+    }
+
+    private static BotRandomizerCustomConfig NormalizeCustomConfig(BotRandomizerCustomConfig config)
+    {
+        config.KnifeDefIndexes = config.KnifeDefIndexes
+            .Where(def => Knives.Any(k => k.DefIndex == def))
+            .Distinct()
+            .ToList();
+        if (config.KnifeDefIndexes.Count == 0)
+            config.KnifeDefIndexes = new BotRandomizerCustomConfig().KnifeDefIndexes;
+
+        config.KnifePaintKits = config.KnifePaintKits
+            .Where(paint => KnifePaints.Contains(paint))
+            .Distinct()
+            .ToList();
+        if (config.KnifePaintKits.Count == 0)
+            config.KnifePaintKits = new BotRandomizerCustomConfig().KnifePaintKits;
+
+        if (config.DropDelaySeconds < 0.1f) config.DropDelaySeconds = 0.1f;
+        if (config.DropDelaySeconds > 10f) config.DropDelaySeconds = 10f;
+        return config;
+    }
+
+    private (string DesignerName, ushort DefIndex, string ModelPath) PickKnife()
+    {
+        var pool = Knives
+            .Where(k => _customConfig.KnifeDefIndexes.Contains(k.DefIndex))
+            .ToArray();
+        if (pool.Length == 0) pool = Knives;
+        return pool[_rng.Next(pool.Length)];
+    }
+
+    private int PickKnifePaint()
+    {
+        var pool = _customConfig.KnifePaintKits
+            .Where(paint => KnifePaints.Contains(paint))
+            .Distinct()
+            .ToArray();
+        if (pool.Length == 0) pool = KnifePaints;
+        return pool[_rng.Next(pool.Length)];
+    }
+
+    private static (string DesignerName, ushort DefIndex, string ModelPath) GetKnifeByDefIndex(ushort defIndex)
+        => Knives.FirstOrDefault(k => k.DefIndex == defIndex) is var knife && knife.DefIndex != 0
+            ? knife
+            : Knives[0];
 
     [GameEventHandler]
     public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
@@ -356,10 +503,10 @@ public class BotRandomizerPlugin : BasePlugin
             _botKits[player.Slot] = KitIds[_rng.Next(KitIds.Length)];
 
         if (!_botKnives.ContainsKey(player.Slot))
-            _botKnives[player.Slot] = _rng.Next(Knives.Length);
+            _botKnives[player.Slot] = PickKnife().DefIndex;
 
         if (!_botKnifePaints.ContainsKey(player.Slot))
-            _botKnifePaints[player.Slot] = KnifePaints[_rng.Next(KnifePaints.Length)];
+            _botKnifePaints[player.Slot] = PickKnifePaint();
 
         if (!_botGloves.ContainsKey(player.Slot))
             _botGloves[player.Slot] = _rng.Next(Gloves.Length);
@@ -367,7 +514,7 @@ public class BotRandomizerPlugin : BasePlugin
         var pawn = player.PlayerPawn.Value;
         var assignedModel = model;
         var kitId = _botKits[player.Slot];
-        var knife = Knives[_botKnives[player.Slot]];
+        var knife = GetKnifeByDefIndex(_botKnives[player.Slot]);
         var knifePaint = _botKnifePaints[player.Slot];
         var glove = Gloves[_botGloves[player.Slot]];
 
@@ -392,6 +539,508 @@ public class BotRandomizerPlugin : BasePlugin
         });
 
         return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
+    {
+        LoadCustomConfig();
+        _droppedKnifeCopySlots.Clear();
+        _droppedKnifeCopyRaws.Clear();
+        _knifePickupFixSlots.Clear();
+        _restoringKnifeSlots.Clear();
+        if (!_customConfig.AutoDropBotKnifeCopy)
+            return HookResult.Continue;
+
+        Server.ExecuteCommand("mp_drop_knife_enable 1");
+        for (int i = 0; i < 6; i++)
+            AddTimer(_customConfig.DropDelaySeconds + i * 0.5f, DropBotKnifeCopies);
+
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnRoundFreezeEnd(EventRoundFreezeEnd @event, GameEventInfo info)
+    {
+        AddTimer(0.10f, EnsureAllBotKnives);
+        AddTimer(0.50f, EnsureAllBotKnives);
+        AddTimer(1.00f, EnsureAllBotKnives);
+        AddTimer(2.00f, EnsureAllBotKnives);
+        AddTimer(3.00f, EnsureAllBotKnives);
+        return HookResult.Continue;
+    }
+
+    private void DropBotKnifeCopies()
+    {
+        if (!_customConfig.AutoDropBotKnifeCopy)
+            return;
+
+        foreach (var player in Utilities.GetPlayers())
+        {
+            if (player == null
+                || !player.IsValid
+                || !player.IsBot
+                || !player.PawnIsAlive
+                || ((CsTeam)player.TeamNum != CsTeam.CounterTerrorist
+                    && (CsTeam)player.TeamNum != CsTeam.Terrorist))
+                continue;
+
+            var pawn = player.PlayerPawn?.Value;
+            if (pawn == null || !pawn.IsValid)
+                continue;
+
+            if (_droppedKnifeCopySlots.Contains(player.Slot))
+                continue;
+
+            if (!_botKnives.TryGetValue(player.Slot, out ushort knifeDefIndex))
+            {
+                knifeDefIndex = PickKnife().DefIndex;
+                _botKnives[player.Slot] = knifeDefIndex;
+            }
+
+            if (!_botKnifePaints.TryGetValue(player.Slot, out int paintKit))
+            {
+                paintKit = PickKnifePaint();
+                _botKnifePaints[player.Slot] = paintKit;
+            }
+
+            _droppedKnifeCopySlots.Add(player.Slot);
+            DropKnifeCopyBurst(player, pawn, GetKnifeByDefIndex(knifeDefIndex), paintKit);
+        }
+    }
+
+    private void DropKnifeCopyBurst(
+        CCSPlayerController player,
+        CCSPlayerPawn pawn,
+        (string DesignerName, ushort DefIndex, string ModelPath) knife,
+        int paintKit)
+    {
+        SetWeaponPickupLock(player, pawn, locked: true);
+        for (int i = 0; i < KnifeCopiesPerBot; i++)
+        {
+            int copyIndex = i;
+            AddTimer(0.01f + copyIndex * 0.35f, () =>
+            {
+                var retryPawn = player.PlayerPawn?.Value;
+                if (retryPawn != null && retryPawn.IsValid && player.IsValid && player.PawnIsAlive)
+                    DropKnifeCopy(player, retryPawn, knife, paintKit, copyIndex);
+            });
+        }
+
+        AddTimer(0.35f * KnifeCopiesPerBot + 1.0f, () =>
+        {
+            var retryPawn = player.PlayerPawn?.Value;
+            if (retryPawn != null && retryPawn.IsValid && player.IsValid)
+                SetWeaponPickupLock(player, retryPawn, locked: false);
+        });
+        ScheduleBotKnifeRestore(player, knife, paintKit, activeRaw: 0, startDelay: 0.35f * KnifeCopiesPerBot + 0.65f, attempts: 6);
+    }
+
+    private bool DropKnifeCopy(
+        CCSPlayerController player,
+        CCSPlayerPawn pawn,
+        (string DesignerName, ushort DefIndex, string ModelPath) knife,
+        int paintKit,
+        int copyIndex = 0,
+        bool includeKnownDroppedCopies = false,
+        uint preferredKnifeRaw = 0)
+    {
+        try
+        {
+            var origin = pawn.AbsOrigin;
+            if (origin == null) return false;
+
+            float yaw = pawn.EyeAngles?.Y ?? 0f;
+            float sideOffset = (copyIndex - (KnifeCopiesPerBot - 1) / 2f) * KnifeDropSideSpacing + ((player.Slot % 5) - 2) * 20f;
+            var dropPos = ResolveKnifeDropPosition(pawn, origin, yaw, sideOffset);
+            var dropAngles = new QAngle(0f, yaw, 0f);
+
+            var weaponServices = pawn.WeaponServices;
+            if (weaponServices == null)
+            {
+                Logger.LogWarning($"[BotRandomizer] WeaponServices missing for {player.PlayerName}; cannot drop knife copy");
+                return false;
+            }
+
+            if (pawn.ItemServices == null || pawn.ItemServices.Handle == nint.Zero)
+            {
+                Logger.LogWarning($"[BotRandomizer] ItemServices missing for {player.PlayerName}; cannot drop knife copy");
+                return false;
+            }
+
+            var heldKnife = FindHeldKnife(pawn, includeKnownDroppedCopies, preferredKnifeRaw);
+            if (heldKnife == null || !heldKnife.IsValid)
+            {
+                GiveBotBaseKnife(player, knife, paintKit);
+                heldKnife = FindHeldKnife(pawn);
+            }
+
+            if (heldKnife == null || !heldKnife.IsValid)
+            {
+                Logger.LogWarning($"[BotRandomizer] No held knife found for {player.PlayerName}; cannot drop copy");
+                return false;
+            }
+
+            ApplyKnifeAttributes(heldKnife, knife.DefIndex, paintKit);
+
+            uint previousActiveRaw = weaponServices.ActiveWeapon.Raw;
+            uint knifeRaw = heldKnife.EntityHandle.Raw;
+            weaponServices.ActiveWeapon.Raw = knifeRaw;
+
+            var itemServices = new CCSPlayer_ItemServices(pawn.ItemServices.Handle);
+            itemServices.DropActivePlayerWeapon(heldKnife);
+            _droppedKnifeCopyRaws.Add(knifeRaw);
+
+            AddTimer(0.03f, () => RestoreActiveWeaponRaw(player, previousActiveRaw));
+            AddTimer(0.08f, () => PositionDroppedKnife(player, heldKnife, knife.DefIndex, paintKit, dropPos, dropAngles));
+            AddTimer(0.10f, () => RestoreBotKnife(player, knife, paintKit, previousActiveRaw));
+            AddTimer(0.18f, () => PositionDroppedKnife(player, heldKnife, knife.DefIndex, paintKit, dropPos, dropAngles));
+            AddTimer(0.25f, () => RestoreBotKnife(player, knife, paintKit, previousActiveRaw));
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"[BotRandomizer] DropKnifeCopy failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private Vector ResolveKnifeDropPosition(CCSPlayerPawn pawn, Vector origin, float yaw, float sideOffset)
+    {
+        foreach (float sideScale in KnifeDropSideScales)
+        {
+            foreach (float direction in KnifeDropDirectionCandidates)
+            {
+                foreach (float distance in KnifeDropDistanceCandidates)
+                {
+                    var candidate = BuildKnifeDropPosition(origin, yaw, direction, distance, sideOffset * sideScale);
+                    if (IsKnifeDropPositionSafe(pawn, origin, candidate))
+                        return candidate;
+                }
+            }
+        }
+
+        return BuildKnifeDropPosition(origin, yaw, 180f, KnifeDropBackDistance, sideOffset);
+    }
+
+    private static Vector BuildKnifeDropPosition(Vector origin, float yaw, float directionOffset, float distance, float sideOffset)
+    {
+        float directionRad = (yaw + directionOffset) * MathF.PI / 180f;
+        float sideRad = (yaw + 90f) * MathF.PI / 180f;
+
+        return new Vector(
+            origin.X + MathF.Cos(directionRad) * distance + MathF.Cos(sideRad) * sideOffset,
+            origin.Y + MathF.Sin(directionRad) * distance + MathF.Sin(sideRad) * sideOffset,
+            origin.Z + KnifeDropHeightOffset);
+    }
+
+    private bool IsKnifeDropPositionSafe(CCSPlayerPawn pawn, Vector origin, Vector candidate)
+    {
+        try
+        {
+            var rt = RayTraceCapability.Get();
+            if (rt == null)
+                return true;
+
+            var opts = new TraceOptions(InteractionLayers.MASK_WORLD_ONLY);
+            var start = new Vector(origin.X, origin.Y, origin.Z + 24f);
+            var end = new Vector(candidate.X, candidate.Y, candidate.Z + 24f);
+            rt.TraceEndShape(start, end, pawn, opts, out TraceResult travel);
+            if (travel.Fraction < 0.98f)
+                return false;
+
+            var groundStart = new Vector(candidate.X, candidate.Y, candidate.Z + 32f);
+            var groundEnd = new Vector(candidate.X, candidate.Y, candidate.Z - 128f);
+            rt.TraceEndShape(groundStart, groundEnd, pawn, opts, out TraceResult ground);
+
+            return ground.Fraction < 0.99f;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private void SetWeaponPickupLock(CCSPlayerController player, CCSPlayerPawn pawn, bool locked)
+    {
+        try
+        {
+            var weaponServices = pawn.WeaponServices;
+            if (weaponServices == null) return;
+
+            weaponServices.PreventWeaponPickup = locked;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"[BotRandomizer] SetWeaponPickupLock failed for {player.PlayerName}: {ex.Message}");
+        }
+    }
+
+    private void RestoreActiveWeaponRaw(CCSPlayerController player, uint activeRaw)
+    {
+        try
+        {
+            if (activeRaw == 0 || player == null || !player.IsValid)
+                return;
+
+            var pawn = player.PlayerPawn?.Value;
+            var weaponServices = pawn?.WeaponServices;
+            if (pawn == null || !pawn.IsValid || weaponServices == null)
+                return;
+
+            if (_droppedKnifeCopyRaws.Contains(activeRaw))
+                return;
+
+            if (!PawnHasWeaponRaw(pawn, activeRaw))
+                return;
+
+            weaponServices.ActiveWeapon.Raw = activeRaw;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"[BotRandomizer] RestoreActiveWeaponRaw failed: {ex.Message}");
+        }
+    }
+
+    private void PositionDroppedKnife(
+        CCSPlayerController player,
+        CBasePlayerWeapon droppedKnife,
+        ushort defIndex,
+        int paintKit,
+        Vector dropPos,
+        QAngle dropAngles)
+    {
+        try
+        {
+            if (droppedKnife == null || !droppedKnife.IsValid)
+                return;
+
+            var pawn = player.PlayerPawn?.Value;
+            if (pawn != null
+                && pawn.IsValid
+                && PawnHasWeapon(pawn, droppedKnife)
+                && !_droppedKnifeCopyRaws.Contains(droppedKnife.EntityHandle.Raw))
+                return;
+
+            droppedKnife.Teleport(dropPos, dropAngles, new Vector(0f, 0f, 0f));
+            ApplyKnifeAttributes(droppedKnife, defIndex, paintKit);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"[BotRandomizer] PositionDroppedKnife failed: {ex.Message}");
+        }
+    }
+
+    private void RestoreBotKnife(
+        CCSPlayerController player,
+        (string DesignerName, ushort DefIndex, string ModelPath) knife,
+        int paintKit,
+        uint activeRaw)
+    {
+        try
+        {
+            if (player == null || !player.IsValid || !player.IsBot || !player.PawnIsAlive)
+                return;
+
+            var pawn = player.PlayerPawn?.Value;
+            if (pawn == null || !pawn.IsValid)
+                return;
+
+            var heldKnife = FindHeldKnife(pawn);
+            if (heldKnife == null || !heldKnife.IsValid)
+            {
+                GiveBotBaseKnife(player, knife, paintKit);
+                heldKnife = FindHeldKnife(pawn);
+            }
+
+            if (heldKnife != null && heldKnife.IsValid)
+                ApplyKnifeAttributes(heldKnife, knife.DefIndex, paintKit);
+
+            RestoreActiveWeaponRaw(player, activeRaw);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"[BotRandomizer] RestoreBotKnife failed: {ex.Message}");
+        }
+    }
+
+    private void GiveBotBaseKnife(
+        CCSPlayerController player,
+        (string DesignerName, ushort DefIndex, string ModelPath) knife,
+        int paintKit)
+    {
+        if (!_restoringKnifeSlots.Add(player.Slot))
+        {
+            ScheduleApplyBotKnifeAttributes(player, knife, paintKit);
+            return;
+        }
+
+        player.GiveNamedItem(GetDefaultKnifeDesignerName(player));
+        ScheduleApplyBotKnifeAttributes(player, knife, paintKit);
+        AddTimer(1.00f, () => _restoringKnifeSlots.Remove(player.Slot));
+    }
+
+    private void ScheduleApplyBotKnifeAttributes(
+        CCSPlayerController player,
+        (string DesignerName, ushort DefIndex, string ModelPath) knife,
+        int paintKit)
+    {
+        AddTimer(0.03f, () => ApplyBotKnifeAttributes(player, knife, paintKit));
+        AddTimer(0.10f, () => ApplyBotKnifeAttributes(player, knife, paintKit));
+        AddTimer(0.25f, () => ApplyBotKnifeAttributes(player, knife, paintKit));
+    }
+
+    private void ApplyBotKnifeAttributes(
+        CCSPlayerController player,
+        (string DesignerName, ushort DefIndex, string ModelPath) knife,
+        int paintKit)
+    {
+        if (player == null || !player.IsValid || !player.IsBot || !player.PawnIsAlive)
+            return;
+
+        var pawn = player.PlayerPawn?.Value;
+        if (pawn == null || !pawn.IsValid)
+            return;
+
+        var heldKnife = FindHeldKnife(pawn);
+        if (heldKnife != null && heldKnife.IsValid)
+            ApplyKnifeAttributes(heldKnife, knife.DefIndex, paintKit);
+    }
+
+    private static string GetDefaultKnifeDesignerName(CCSPlayerController player)
+        => (CsTeam)player.TeamNum == CsTeam.Terrorist ? "weapon_knife_t" : "weapon_knife";
+
+    private void ScheduleBotKnifeRestore(
+        CCSPlayerController player,
+        (string DesignerName, ushort DefIndex, string ModelPath) knife,
+        int paintKit,
+        uint activeRaw,
+        float startDelay,
+        int attempts)
+    {
+        for (int i = 0; i < attempts; i++)
+        {
+            float delay = startDelay + i * 0.45f;
+            AddTimer(delay, () => RestoreBotKnife(player, knife, paintKit, activeRaw));
+        }
+    }
+
+    private void EnsureAllBotKnives()
+    {
+        foreach (var player in Utilities.GetPlayers())
+        {
+            if (player == null
+                || !player.IsValid
+                || !player.IsBot
+                || !player.PawnIsAlive
+                || ((CsTeam)player.TeamNum != CsTeam.CounterTerrorist
+                    && (CsTeam)player.TeamNum != CsTeam.Terrorist))
+                continue;
+
+            EnsureBotKnife(player);
+        }
+    }
+
+    private void EnsureBotKnife(CCSPlayerController player)
+    {
+        if (!_botKnives.TryGetValue(player.Slot, out ushort knifeDefIndex))
+        {
+            knifeDefIndex = PickKnife().DefIndex;
+            _botKnives[player.Slot] = knifeDefIndex;
+        }
+
+        if (!_botKnifePaints.TryGetValue(player.Slot, out int paintKit))
+        {
+            paintKit = PickKnifePaint();
+            _botKnifePaints[player.Slot] = paintKit;
+        }
+
+        RestoreBotKnife(player, GetKnifeByDefIndex(knifeDefIndex), paintKit, activeRaw: 0);
+    }
+
+    private CBasePlayerWeapon? FindHeldKnife(
+        CCSPlayerPawn pawn,
+        bool includeKnownDroppedCopies = false,
+        uint preferredRaw = 0)
+    {
+        var weapons = pawn.WeaponServices?.MyWeapons;
+        if (weapons == null) return null;
+
+        if (preferredRaw != 0)
+        {
+            foreach (var handle in weapons)
+            {
+                var weapon = handle.Value;
+                if (weapon == null || !weapon.IsValid || weapon.EntityHandle.Raw != preferredRaw) continue;
+
+                var name = weapon.DesignerName;
+                if (!string.IsNullOrEmpty(name) && (name.Contains("knife") || name == "weapon_bayonet"))
+                    return weapon;
+            }
+        }
+
+        foreach (var handle in weapons)
+        {
+            var weapon = handle.Value;
+            if (weapon == null || !weapon.IsValid) continue;
+            if (!includeKnownDroppedCopies && _droppedKnifeCopyRaws.Contains(weapon.EntityHandle.Raw)) continue;
+
+            var name = weapon.DesignerName;
+            if (!string.IsNullOrEmpty(name) && (name.Contains("knife") || name == "weapon_bayonet"))
+                return weapon;
+        }
+
+        return null;
+    }
+
+    private static bool PawnHasWeapon(CCSPlayerPawn pawn, CBasePlayerWeapon weapon)
+    {
+        var weapons = pawn.WeaponServices?.MyWeapons;
+        if (weapons == null) return false;
+
+        foreach (var handle in weapons)
+        {
+            var held = handle.Value;
+            if (held != null && held.IsValid && held.Handle == weapon.Handle)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool PawnHasWeaponRaw(CCSPlayerPawn pawn, uint raw)
+    {
+        var weapons = pawn.WeaponServices?.MyWeapons;
+        if (weapons == null) return false;
+
+        foreach (var handle in weapons)
+        {
+            var held = handle.Value;
+            if (held != null && held.IsValid && held.EntityHandle.Raw == raw)
+                return true;
+        }
+
+        return false;
+    }
+
+    private CBasePlayerWeapon? FindKnownDroppedKnife(CCSPlayerPawn pawn)
+    {
+        var weapons = pawn.WeaponServices?.MyWeapons;
+        if (weapons == null) return null;
+
+        foreach (var handle in weapons)
+        {
+            var weapon = handle.Value;
+            if (weapon == null || !weapon.IsValid) continue;
+            if (!_droppedKnifeCopyRaws.Contains(weapon.EntityHandle.Raw)) continue;
+
+            var name = weapon.DesignerName;
+            if (!string.IsNullOrEmpty(name) && (name.Contains("knife") || name == "weapon_bayonet"))
+                return weapon;
+        }
+
+        return null;
     }
 
     private void ApplyWearables(CCSPlayerController player, CCSPlayerPawn pawn, ushort knifeDefIndex, int knifePaintKit, ushort gloveDefIndex, int glovePaintKit)
@@ -527,6 +1176,58 @@ public class BotRandomizerPlugin : BasePlugin
         }
     }
 
+    private void ApplyKnifeAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit)
+    {
+        int seed = GetKnifeSeed(defIndex, paintKit);
+
+        weapon.AcceptInput("ChangeSubclass", value: defIndex.ToString());
+        ApplyKnifeEconomyAttributes(weapon, defIndex, paintKit, seed);
+    }
+
+    private void ApplyKnifeEconomyAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit, int seed)
+    {
+        if (weapon == null || !weapon.IsValid) return;
+
+        var item = weapon.AttributeManager?.Item;
+        if (item == null) return;
+
+        item.ItemDefinitionIndex = defIndex;
+        item.EntityQuality = 3;
+
+        item.AttributeList.Attributes.RemoveAll();
+        item.NetworkedDynamicAttributes.Attributes.RemoveAll();
+        AssignItemId(item);
+
+        if (_setAttrByName != null && paintKit > 0)
+        {
+            weapon.FallbackPaintKit = paintKit;
+            weapon.FallbackSeed = seed;
+            weapon.FallbackWear = 0.01f;
+
+            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture prefab", paintKit);
+            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture seed", (float)seed);
+            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture wear", 0.01f);
+
+            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture prefab", paintKit);
+            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture seed", (float)seed);
+            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture wear", 0.01f);
+        }
+
+        Utilities.SetStateChanged(weapon, "CEconEntity", "m_AttributeManager");
+    }
+
+    private static int GetKnifeSeed(ushort defIndex, int paintKit)
+    {
+        if (paintKit != 38) return 0;
+
+        return defIndex switch
+        {
+            507 => 412,
+            523 => 412,
+            _ => 763
+        };
+    }
+
     private void ReplaceKnife(CCSPlayerPawn pawn, ushort defIndex, int paintKit)
     {
         try
@@ -546,35 +1247,7 @@ public class BotRandomizerPlugin : BasePlugin
                 // Force subclass (model/anim) to match itemdef (name) on every pass.
                 // ChangeSubclass is async and may miss on a not-yet-deployed entity;
                 // gating it on itemdef would leave them permanently out of sync.
-                w.AcceptInput("ChangeSubclass", value: defIndex.ToString());
-
-                var item = w.AttributeManager?.Item;
-                if (item == null) break;
-
-                item.ItemDefinitionIndex = defIndex;
-                item.EntityQuality = 3;
-
-                item.AttributeList.Attributes.RemoveAll();
-                item.NetworkedDynamicAttributes.Attributes.RemoveAll();
-
-                AssignItemId(item);
-
-                if (_setAttrByName != null && paintKit > 0)
-                {
-                    w.FallbackPaintKit = paintKit;
-                    w.FallbackSeed = 0;
-                    w.FallbackWear = 0.01f;
-
-                    _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture prefab", paintKit);
-                    _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture seed", 0f);
-                    _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture wear", 0.01f);
-
-                    _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture prefab", paintKit);
-                    _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture seed", 0f);
-                    _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture wear", 0.01f);
-                }
-
-                Utilities.SetStateChanged(w, "CEconEntity", "m_AttributeManager");
+                ApplyKnifeAttributes(w, defIndex, paintKit);
                 break;
             }
         }
@@ -690,6 +1363,45 @@ public class BotRandomizerPlugin : BasePlugin
         if (pawn == null || !pawn.IsValid)
             return HookResult.Continue;
 
+        if (_restoringKnifeSlots.Contains(player.Slot))
+        {
+            AddTimer(0.05f, () =>
+            {
+                var retryPawn = player.PlayerPawn?.Value;
+                if (retryPawn != null && retryPawn.IsValid)
+                    EnsureBotKnife(player);
+            });
+            return HookResult.Continue;
+        }
+
+        var knownDroppedKnife = FindKnownDroppedKnife(pawn);
+        if (knownDroppedKnife != null
+            && knownDroppedKnife.IsValid
+            && _customConfig.AutoDropBotKnifeCopy
+            && _droppedKnifeCopySlots.Contains(player.Slot)
+            && !_knifePickupFixSlots.Contains(player.Slot)
+            && _botKnives.TryGetValue(player.Slot, out ushort knifeDefIndex)
+            && _botKnifePaints.TryGetValue(player.Slot, out int paintKit))
+        {
+            var knife = GetKnifeByDefIndex(knifeDefIndex);
+            _knifePickupFixSlots.Add(player.Slot);
+            AddTimer(0.05f, () =>
+            {
+                var retryPawn = player.PlayerPawn?.Value;
+                if (retryPawn != null && retryPawn.IsValid)
+                    DropKnifeCopy(
+                        player,
+                        retryPawn,
+                        knife,
+                        paintKit,
+                        includeKnownDroppedCopies: true,
+                        preferredKnifeRaw: knownDroppedKnife.EntityHandle.Raw);
+            });
+            ScheduleBotKnifeRestore(player, knife, paintKit, activeRaw: 0, startDelay: 0.55f, attempts: 5);
+            AddTimer(1.0f, () => _knifePickupFixSlots.Remove(player.Slot));
+            return HookResult.Continue;
+        }
+
         // Deferred + retried so a frame where ChangeSubclass doesn't take can't
         // leave the knife's subclass permanently out of sync.
         Server.NextFrame(() => SyncPickedUpKnife(pawn));
@@ -754,6 +1466,9 @@ public class BotRandomizerPlugin : BasePlugin
         _botKnives.Remove(slot);
         _botKnifePaints.Remove(slot);
         _botGloves.Remove(slot);
+        _droppedKnifeCopySlots.Remove(slot);
+        _knifePickupFixSlots.Remove(slot);
+        _restoringKnifeSlots.Remove(slot);
         foreach (var key in _botGunPaints.Keys.Where(k => k.Slot == slot).ToList())
             _botGunPaints.Remove(key);
 

@@ -284,7 +284,8 @@ public class NadeSystemPlugin : BasePlugin
         RegisterEventHandler<EventBombBegindefuse>(OnBombBeginDefuse);
         RegisterEventHandler<EventBombBeginplant>(OnBombBeginPlant);
         RegisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
-        RegisterEventHandler<EventPlayerBlind>(OnPlayerBlind);
+        // Bot flash immunity is intentionally disabled in the custom build.
+        // Let BotState's normal-player flash avoidance decide whether bots get blinded.
         RegisterEventHandler<EventWeaponFire>(OnWeaponFire);
         RegisterEventHandler<EventWeaponReload>(OnWeaponReload);
         RegisterEventHandler<EventWeaponZoom>(OnWeaponZoom);

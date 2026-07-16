@@ -32,6 +32,10 @@ public class BotAI : BasePlugin
 
     private readonly List<PatchInfo> _appliedPatches = [];
     private readonly bool _isLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+    private static readonly HashSet<string> DisabledPatches = new()
+    {
+        "InViewCone_RemoveInnerFOV"
+    };
 
 
 
@@ -42,6 +46,11 @@ public class BotAI : BasePlugin
 
         foreach (var name in patchDefinitions.Keys)
         {
+            if (DisabledPatches.Contains(name))
+            {
+                Logger.LogInformation($"{name}: skipped to retain softer target acquisition.");
+                continue;
+            }
             if (ApplyPatch(name, _isLinux)) Logger.LogInformation($"{name}: applied.");
             else Logger.LogError($"{name}: FAILED.");
         }

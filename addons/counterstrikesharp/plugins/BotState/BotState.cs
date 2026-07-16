@@ -21,8 +21,8 @@ public class BotState : BasePlugin
     public override string ModuleAuthor => "ed0ard & XBribo";
     public override string ModuleDescription => "Make bots smarter";
 
-    private const float ExpandedValue = 500f;
-    private const float NormalValue = 50f;
+    private const float ExpandedValue = 200f;
+    private const float NormalValue = 200f;
     private const float RestoreDelay = 1.0f;
     private const int KnifeDefinitionIndex = 9001;
 
@@ -47,6 +47,7 @@ public class BotState : BasePlugin
     private readonly Dictionary<int, float> _stuckMaxSpeed = new();
     private readonly Dictionary<int, float> _idleStartTime = new();
     private readonly Dictionary<int, float> _lastRepathTime = new();
+    private readonly Dictionary<int, float> _lastHurtAt = new();
     private bool _isFreezeTime = false;
 
     private readonly HashSet<int> _hasFiredThisAttack = new();
@@ -77,6 +78,8 @@ public class BotState : BasePlugin
         public float FirstSeen;
         public float LastSeen;
         public float DetonateAt;
+        public double Probability;
+        public string? Modifiers;
         public bool Avoided;
     }
     private readonly Dictionary<(int bot, uint flash), FlashDecision> _flashDecisions = new();
@@ -104,6 +107,7 @@ public class BotState : BasePlugin
         RegisterEventHandler<EventWeaponFire>(OnWeaponFire);
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
         RegisterListener<Listeners.OnTick>(OnTick);
+        SetSmokeLength(NormalValue);
     }
 
     // Resolves capabilities supplied by plugins after every plugin has loaded
@@ -159,6 +163,8 @@ public class BotState : BasePlugin
         {
             var victim = @event.Userid;
             if (victim == null || !victim.IsValid || !victim.IsBot) return HookResult.Continue;
+
+            _lastHurtAt[(int)victim.Index] = Server.CurrentTime;
 
             if (!_isExpanded)
             {
@@ -291,8 +297,8 @@ public class BotState : BasePlugin
         }
         else
         {
-            // Fallback when raytrace is unavailable
-            isImmune = _random.NextDouble() <= 0.6;
+            // Without raytrace we cannot prove the bot saw the flash, so do not grant free immunity.
+            isImmune = false;
         }
 
         if (isImmune)
@@ -321,7 +327,8 @@ public class BotState : BasePlugin
             if (matchedKey.HasValue)
             {
                 float visibleMs = (matched.LastSeen - matched.FirstSeen) * 1000f;
-                detail = $"flash#{matchedKey.Value.flash} visible={visibleMs:F0}ms rolled={(matched.Avoided ? "AVOID" : "flash")}";
+                string mods = string.IsNullOrEmpty(matched.Modifiers) ? "none" : matched.Modifiers;
+                detail = $"flash#{matchedKey.Value.flash} visible={visibleMs:F0}ms prob={matched.Probability * 100:F0}% mods={mods} rolled={(matched.Avoided ? "AVOID" : "flash")}";
             }
             else
             {
@@ -794,6 +801,7 @@ public class BotState : BasePlugin
         ReleaseKnifeLocks();
         _eliminationHandled = false;
         _isFreezeTime = true;
+        SetSmokeLength(NormalValue);
 
         // Per-round transient state keyed by player index. Indices are reused by
         // later connections, so stale entries would leak last round's movement /
@@ -810,6 +818,7 @@ public class BotState : BasePlugin
         _stuckMaxSpeed.Clear();
         _idleStartTime.Clear();
         _lastRepathTime.Clear();
+        _lastHurtAt.Clear();
         _hasFiredThisAttack.Clear();
         _prevIsAttacking.Clear();
         _cachedInAir.Clear();
@@ -1326,29 +1335,84 @@ public class BotState : BasePlugin
                 rolled.Add(fidx);
 
                 float msLeft = (detonateAt - now) * 1000f;
-                double prob = msLeft <= 150f ? 0.05
-                            : msLeft <= 250f ? 0.20
-                            : msLeft <= 400f ? 0.50
-                            : msLeft <= 600f ? 0.90
-                            : 0.95;
+                double prob = GetFlashAvoidanceProbability(bot, pawn, msLeft, dYaw, dPit, now, out string modifiers);
 
-                bool avoided = _random.NextDouble() <= prob;
+                bool avoided = prob > 0.0 && _random.NextDouble() <= prob;
 
                 _flashDecisions[key] = new FlashDecision
                 {
                     FirstSeen = now,
                     LastSeen = now,
                     DetonateAt = detonateAt,
+                    Probability = prob,
+                    Modifiers = modifiers,
                     Avoided = avoided,
                 };
 
                 if (_debugFlash)
                 {
                     BroadcastDebug(
-                        $"[Smarter-Bot/Flash] bot={bot.PlayerName} sees flash#{fidx} t-{msLeft:F0}ms prob={prob * 100:F0}% roll={(avoided ? "AVOID" : "flash")}");
+                        $"[Smarter-Bot/Flash] bot={bot.PlayerName} sees flash#{fidx} t-{msLeft:F0}ms prob={prob * 100:F0}% mods={(string.IsNullOrEmpty(modifiers) ? "none" : modifiers)} roll={(avoided ? "AVOID" : "flash")}");
                 }
             }
         }
+    }
+
+    private double GetFlashAvoidanceProbability(
+        CCSPlayerController player,
+        CCSPlayerPawn pawn,
+        float msLeft,
+        float dYaw,
+        float dPitch,
+        float now,
+        out string modifiers)
+    {
+        double prob = msLeft <= 150f ? 0.00
+                    : msLeft <= 250f ? 0.05
+                    : msLeft <= 350f ? 0.15
+                    : msLeft <= 500f ? 0.35
+                    : msLeft <= 700f ? 0.55
+                    : msLeft <= 1000f ? 0.70
+                    : 0.80;
+
+        var activeModifiers = new List<string>();
+
+        double yawEdge = Math.Abs(dYaw) / (FlashFovHorizDeg * 0.5);
+        double pitchEdge = Math.Abs(dPitch) / (FlashFovVertDeg * 0.5);
+        if (Math.Max(yawEdge, pitchEdge) >= 0.75)
+        {
+            prob *= 0.70;
+            activeModifiers.Add("edge");
+        }
+
+        var bot = pawn.Bot;
+        if (bot != null && bot.IsAttacking)
+        {
+            prob *= 0.75;
+            activeModifiers.Add("attacking");
+        }
+
+        if (IsReloading(player))
+        {
+            prob *= 0.75;
+            activeModifiers.Add("reloading");
+        }
+
+        if (pawn.IsDefusing)
+        {
+            prob *= 0.50;
+            activeModifiers.Add("defusing");
+        }
+
+        int idx = (int)player.Index;
+        if (_lastHurtAt.TryGetValue(idx, out float lastHurtAt) && now - lastHurtAt <= 0.75f)
+        {
+            prob *= 0.70;
+            activeModifiers.Add("hurt");
+        }
+
+        modifiers = string.Join(",", activeModifiers);
+        return Math.Clamp(prob, 0.0, 0.80);
     }
 
     // Decoupled horizontal/vertical FOV check. Source 2 QAngle convention:
