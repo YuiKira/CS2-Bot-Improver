@@ -42,7 +42,8 @@ button { cursor: pointer; }
 .workspace { display: flex; min-width: 0; flex-direction: column; overflow: hidden; }
 .topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; min-height: 78px; padding: 13px 20px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .path-field { min-width: 0; flex: 1; }
-.path-field label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.path-heading { display: flex !important; align-items: center; gap: 12px; margin-bottom: 5px; }
+.path-field label { color: var(--muted); font-size: 11px; font-weight: 600; }
 .path-field > div { display: flex; }
 .path-field input { min-width: 240px; max-width: 700px; flex: 1; height: 34px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 5px 0 0 5px; outline: 0; }
 .path-field input:focus { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -50,6 +51,11 @@ button { cursor: pointer; }
 .path-field button:last-child { border-radius: 0 5px 5px 0; }
 .path-field button:hover { background: #e9ebee; }
 .top-actions { display: flex; align-items: center; gap: 12px; padding-bottom: 1px; }
+.mode-state { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.mode-state.is-ready { color: var(--accent); font-weight: 700; }
+.mode-state.is-warning { color: var(--danger); font-weight: 700; }
+.path-field .mode-command { padding: 0 12px; border-color: #9b642e; background: #fff4e5; color: #7a4819; font-weight: 700; white-space: nowrap; }
+.mode-command:hover { background: #f9e7cd; }
 .save-state { max-width: 240px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .save-state.is-dirty { color: var(--orange); }
 .primary-command { height: 36px; padding: 0 20px; border: 1px solid #0f603b; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 700; }

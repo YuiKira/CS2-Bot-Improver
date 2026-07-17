@@ -100,6 +100,7 @@ internal sealed class MainForm : Form
                     {
                         ["root"] = _selectedRoot,
                         ["config"] = ReadConfig(_selectedRoot),
+                        ["status"] = GetInstallationStatus(_selectedRoot),
                         ["original_panel_available"] = File.Exists(Path.Combine(_appDirectory, "Panel v1.4.2.exe"))
                     });
                     break;
@@ -110,7 +111,21 @@ internal sealed class MainForm : Form
                 case "/api/save":
                     _selectedRoot = body.Value<string>("root") ?? string.Empty;
                     var savedPath = WriteConfig(_selectedRoot, body["config"] ?? new JObject());
-                    Reply(id, new JObject { ["ok"] = true, ["path"] = savedPath });
+                    Reply(id, new JObject
+                    {
+                        ["ok"] = true,
+                        ["path"] = savedPath,
+                        ["status"] = GetInstallationStatus(_selectedRoot)
+                    });
+                    break;
+                case "/api/enable-bot-mode":
+                    _selectedRoot = body.Value<string>("root") ?? string.Empty;
+                    EnableBotMode(_selectedRoot);
+                    Reply(id, new JObject
+                    {
+                        ["ok"] = true,
+                        ["status"] = GetInstallationStatus(_selectedRoot)
+                    });
                     break;
                 case "/api/browse":
                     BrowseForRoot();
@@ -174,6 +189,64 @@ internal sealed class MainForm : Form
         return path;
     }
 
+    private static JObject GetInstallationStatus(string root)
+    {
+        var missing = new JArray();
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            return new JObject
+            {
+                ["root_valid"] = false,
+                ["bot_mode_active"] = false,
+                ["names_ready"] = false,
+                ["can_enable_bot_mode"] = false,
+                ["missing"] = missing
+            };
+
+        var gameInfoPath = Path.Combine(root, "gameinfo.gi");
+        var gameInfo = File.Exists(gameInfoPath)
+            ? File.ReadAllText(gameInfoPath, Encoding.UTF8)
+            : string.Empty;
+        var botModeActive = gameInfo.IndexOf("csgo/addons/metamod", StringComparison.OrdinalIgnoreCase) >= 0
+            && gameInfo.IndexOf("csgo/overrides/botprofile.vpk", StringComparison.OrdinalIgnoreCase) >= 0;
+
+        var requiredNameFiles = new[]
+        {
+            Path.Combine("addons", "metamod", "bin", "server.dll"),
+            Path.Combine("addons", "counterstrikesharp", "bin", "win64", "counterstrikesharp.dll"),
+            Path.Combine("addons", "counterstrikesharp", "plugins", "BotRandomizer", "BotRandomizer.dll"),
+            Path.Combine("addons", "BotHider", "bin", "win64", "BotHider.dll"),
+            Path.Combine("addons", "BotHider", "bot_info.json"),
+            Path.Combine("addons", "metamod", "BotHider.vdf"),
+            Path.Combine("overrides", "botprofile.vpk")
+        };
+        foreach (var relativePath in requiredNameFiles)
+        {
+            if (!File.Exists(Path.Combine(root, relativePath)))
+                missing.Add(relativePath.Replace(Path.DirectorySeparatorChar, '/'));
+        }
+
+        return new JObject
+        {
+            ["root_valid"] = true,
+            ["bot_mode_active"] = botModeActive,
+            ["names_ready"] = botModeActive && missing.Count == 0,
+            ["can_enable_bot_mode"] = File.Exists(Path.Combine(root, "backup", "WithBots", "gameinfo.gi")),
+            ["missing"] = missing
+        };
+    }
+
+    private static void EnableBotMode(string root)
+    {
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            throw new DirectoryNotFoundException("请先选择正确的 CS2 game/csgo 文件夹。");
+
+        var source = Path.Combine(root, "backup", "WithBots", "gameinfo.gi");
+        if (!File.Exists(source))
+            throw new FileNotFoundException("没有找到 Bot 模式备份文件，请重新覆盖安装完整发布包。", source);
+
+        File.Copy(source, Path.Combine(root, "gameinfo.gi"), true);
+    }
+
     private void BrowseForRoot()
     {
         using var dialog = new FolderBrowserDialog
@@ -197,7 +270,8 @@ internal sealed class MainForm : Form
     private void ReplyWithConfig(int id) => Reply(id, new JObject
     {
         ["root"] = _selectedRoot,
-        ["config"] = ReadConfig(_selectedRoot)
+        ["config"] = ReadConfig(_selectedRoot),
+        ["status"] = GetInstallationStatus(_selectedRoot)
     });
 
     private void Reply(int id, JToken data)

@@ -26,10 +26,13 @@
     <main class="workspace">
       <header class="topbar">
         <div class="path-field">
-          <label for="rootPath">CS2 game/csgo 文件夹</label>
-          <div><input id="rootPath" type="text" spellcheck="false"><button id="browse">浏览</button><button id="reload" title="重新读取配置">重新加载</button></div>
+          <div class="path-heading"><label for="rootPath">CS2 game/csgo 文件夹</label><span id="modeState" class="mode-state">检测运行模式</span></div>
+          <div><input id="rootPath" type="text" spellcheck="false"><button id="browse">浏览</button><button id="reload" title="重新读取配置">重新加载</button><button id="enableBotMode" class="mode-command" hidden>启用 Bot 模式</button></div>
         </div>
-        <div class="top-actions"><span id="saveState" class="save-state">正在载入</span><button id="save" class="primary-command">保存配置</button></div>
+        <div class="top-actions">
+          <span id="saveState" class="save-state">正在载入</span>
+          <button id="save" class="primary-command">保存配置</button>
+        </div>
       </header>
 
       <section id="gunsView" class="view view-guns">

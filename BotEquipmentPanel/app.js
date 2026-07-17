@@ -123,6 +123,30 @@ function setDirty(value = true) {
   $("saveState").classList.toggle("is-dirty", value);
 }
 
+function renderInstallationStatus(status) {
+  const state = status || {};
+  const label = $("modeState");
+  const enable = $("enableBotMode");
+  label.className = "mode-state";
+  enable.hidden = true;
+
+  if (!state.root_valid) {
+    label.textContent = "未选择有效游戏目录";
+    label.classList.add("is-warning");
+  } else if (state.names_ready) {
+    label.textContent = "Bot 模式与名字组件正常";
+    label.classList.add("is-ready");
+  } else if (!state.bot_mode_active) {
+    label.textContent = "当前为普通联机模式";
+    label.classList.add("is-warning");
+    enable.hidden = !state.can_enable_bot_mode;
+  } else {
+    const count = Array.isArray(state.missing) ? state.missing.length : 0;
+    label.textContent = `Bot 插件文件缺失 ${count} 项`;
+    label.classList.add("is-warning");
+  }
+}
+
 function defaultSettings(skin, statTrak = false) {
   const min = Number(skin.min_wear ?? 0), max = Number(skin.max_wear ?? 1);
   const settings = {wear: Math.min(max, Math.max(min, 0.01)), seed: 0};
@@ -309,6 +333,7 @@ function applyLoaded(payload) {
   hydrateSettings();
   $("rootPath").value = payload.root || "";
   focusedGun = null; focusedKnife = null;
+  renderInstallationStatus(payload.status);
   setDirty(false); renderAll();
 }
 
@@ -393,8 +418,20 @@ $("browse").addEventListener("click", async () => { try { applyLoaded(await api(
 $("reload").addEventListener("click", async () => { try { applyLoaded(await api("/api/load", {root: $("rootPath").value.trim()})); showToast("配置已重新加载"); } catch (error) { showToast(error.message, true); } });
 $("save").addEventListener("click", async () => {
   if (!config.knife_def_indexes.length) { showToast("至少启用一个刀型", true); return; }
-  try { const result = await api("/api/save", {root: $("rootPath").value.trim(), config}); setDirty(false); showToast(`已保存：${result.path}`); }
+  try {
+    const result = await api("/api/save", {root: $("rootPath").value.trim(), config});
+    renderInstallationStatus(result.status); setDirty(false);
+    if (!result.status?.names_ready) showToast("配置已保存，但 Bot 模式或名字组件未就绪，游戏内插件可能不会生效", true);
+    else showToast(`已保存：${result.path}`);
+  }
   catch (error) { showToast(error.message, true); }
+});
+$("enableBotMode").addEventListener("click", async () => {
+  try {
+    const result = await api("/api/enable-bot-mode", {root: $("rootPath").value.trim()});
+    renderInstallationStatus(result.status);
+    showToast("已启用 Bot 模式，请完全退出并重新启动 CS2");
+  } catch (error) { showToast(error.message, true); }
 });
 $("openOriginal").addEventListener("click", async () => { try { await api("/api/launch-original", {}); } catch (error) { showToast(error.message, true); } });
 $("shutdown").addEventListener("click", async () => { try { await api("/api/shutdown", {}); } catch {} });
