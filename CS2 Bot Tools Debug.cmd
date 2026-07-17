@@ -4,4 +4,7 @@ if not exist "%~dp0CS2 Bot Tools.exe" (
   pause
   exit /b 1
 )
-start "" "%~dp0CS2 Bot Tools.exe"
+"%~dp0CS2 Bot Tools.exe"
+echo.
+echo CS2 Bot Tools exited with code %ERRORLEVEL%.
+pause

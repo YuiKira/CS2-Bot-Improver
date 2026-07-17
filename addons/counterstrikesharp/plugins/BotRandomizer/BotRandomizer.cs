@@ -24,11 +24,60 @@ public sealed class BotRandomizerCustomConfig
     [JsonPropertyName("knife_paint_kits")]
     public List<int> KnifePaintKits { get; set; } = new() { 415, 416 };
 
+    [JsonPropertyName("knife_skin_settings")]
+    public Dictionary<int, WeaponSkinSettings> KnifeSkinSettings { get; set; } = new();
+
+    [JsonPropertyName("knife_paint_kits_by_def_index")]
+    public Dictionary<ushort, List<int>> KnifePaintKitsByDefIndex { get; set; } = new();
+
+    [JsonPropertyName("knife_skin_settings_by_def_index")]
+    public Dictionary<ushort, Dictionary<int, WeaponSkinSettings>> KnifeSkinSettingsByDefIndex { get; set; } = new();
+
+    [JsonPropertyName("weapon_paint_kits")]
+    public Dictionary<ushort, List<int>> WeaponPaintKits { get; set; } = new();
+
+    [JsonPropertyName("weapon_skin_settings")]
+    public Dictionary<ushort, Dictionary<int, WeaponSkinSettings>> WeaponSkinSettings { get; set; } = new();
+
     [JsonPropertyName("auto_drop_bot_knife_copy")]
     public bool AutoDropBotKnifeCopy { get; set; } = true;
 
     [JsonPropertyName("drop_delay_seconds")]
     public float DropDelaySeconds { get; set; } = 1.0f;
+}
+
+public sealed class WeaponSkinSettings
+{
+    [JsonPropertyName("wear")]
+    public float Wear { get; set; } = 0.01f;
+
+    [JsonPropertyName("seed")]
+    public int Seed { get; set; }
+
+    [JsonPropertyName("stattrak")]
+    public bool StatTrak { get; set; }
+
+    [JsonPropertyName("stattrak_min")]
+    public int StatTrakMin { get; set; }
+
+    [JsonPropertyName("stattrak_max")]
+    public int StatTrakMax { get; set; } = 99999;
+}
+
+internal sealed class BotGunSkin
+{
+    public required int PaintKit { get; init; }
+    public required float Wear { get; init; }
+    public required int Seed { get; init; }
+    public required bool StatTrak { get; init; }
+    public required int StatTrakValue { get; init; }
+}
+
+internal sealed class PendingGroundKnife
+{
+    public required ushort DefIndex { get; init; }
+    public required int PaintKit { get; init; }
+    public required DateTime CreatedAt { get; init; }
 }
 
 public class BotRandomizerPlugin : BasePlugin
@@ -48,6 +97,7 @@ public class BotRandomizerPlugin : BasePlugin
     private readonly HashSet<uint> _droppedKnifeCopyRaws = new();
     private readonly HashSet<int> _knifePickupFixSlots = new();
     private readonly HashSet<int> _restoringKnifeSlots = new();
+    private readonly List<PendingGroundKnife> _pendingGroundKnives = new();
     private BotRandomizerCustomConfig _customConfig = new();
     private const int KnifeCopiesPerBot = 5;
     private const float KnifeDropBackDistance = 100f;
@@ -70,9 +120,14 @@ public class BotRandomizerPlugin : BasePlugin
     // a "body" bodygroup: value 0 = current model UVs, value 1 = legacy model UVs.
     private readonly HashSet<(ushort DefIndex, int Paint)> _legacyPaints = new();
 
+    // Built from skins_en.json at runtime. GunPaints remains as a fallback when
+    // the data file is missing or malformed.
+    private readonly Dictionary<ushort, int[]> _availableGunPaints = new();
+    private readonly Dictionary<ushort, int[]> _availableKnifePaints = new();
+
     // Chosen gun paint per (bot slot, weapon defindex). Guns are skinned from
     // several places (the GiveNamedItem hook plus spawn timers); 
-    private readonly Dictionary<(int Slot, ushort DefIndex), int> _botGunPaints = new();
+    private readonly Dictionary<(int Slot, ushort DefIndex), BotGunSkin> _botGunSkins = new();
 
     // Knife-universal paint kit ids. The custom panel writes a subset of these.
     private static readonly int[] KnifePaints =
@@ -336,8 +391,8 @@ public class BotRandomizerPlugin : BasePlugin
     {
         // Avoid generating too many logs
         _skinErrorLogged = false;
+        LoadSkinData();
         LoadCustomConfig();
-        LoadLegacyPaints();
 
         try
         {
@@ -354,17 +409,19 @@ public class BotRandomizerPlugin : BasePlugin
 
         RegisterListener<Listeners.OnMapStart>(_ =>
         {
+            LoadSkinData();
             LoadCustomConfig();
             _botModels.Clear();
             _botKits.Clear();
             _botKnives.Clear();
             _botKnifePaints.Clear();
             _botGloves.Clear();
-            _botGunPaints.Clear();
+            _botGunSkins.Clear();
             _droppedKnifeCopySlots.Clear();
             _droppedKnifeCopyRaws.Clear();
             _knifePickupFixSlots.Clear();
             _restoringKnifeSlots.Clear();
+            _pendingGroundKnives.Clear();
             foreach (var m in CtModels) Server.PrecacheModel(m);
             foreach (var m in TModels) Server.PrecacheModel(m);
         });
@@ -375,7 +432,9 @@ public class BotRandomizerPlugin : BasePlugin
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp, HookMode.Pre);
         RegisterEventHandler<EventPlayerTeam>(OnPlayerTeam);
         RegisterEventHandler<EventItemPickup>(OnItemPickup);
-        AddCommand("bot_randomizer_reload", "Reload BotRandomizer custom knife config", CmdReloadConfig);
+        AddCommand("bot_randomizer_reload", "Reload BotRandomizer cosmetic config", CmdReloadConfig);
+        AddCommandListener("subclass_create", OnSubclassCreate, HookMode.Pre);
+        RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawned);
 
         // Skin a bot's gun the instant the engine hands it the weapon.
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
@@ -398,10 +457,13 @@ public class BotRandomizerPlugin : BasePlugin
 
     private void CmdReloadConfig(CCSPlayerController? player, CommandInfo command)
     {
+        LoadSkinData();
         LoadCustomConfig();
         _botKnives.Clear();
         _botKnifePaints.Clear();
-        command.ReplyToCommand("[BotRandomizer] Custom knife config reloaded.");
+        _botGunSkins.Clear();
+        _pendingGroundKnives.Clear();
+        command.ReplyToCommand("[BotRandomizer] Cosmetic config reloaded.");
     }
 
     private void LoadCustomConfig()
@@ -429,21 +491,147 @@ public class BotRandomizerPlugin : BasePlugin
         File.WriteAllText(CustomConfigPath, JsonSerializer.Serialize(config, CustomJsonOptions));
     }
 
-    private static BotRandomizerCustomConfig NormalizeCustomConfig(BotRandomizerCustomConfig config)
+    private BotRandomizerCustomConfig NormalizeCustomConfig(BotRandomizerCustomConfig config)
     {
-        config.KnifeDefIndexes = config.KnifeDefIndexes
+        config.KnifeDefIndexes = (config.KnifeDefIndexes ?? new())
             .Where(def => Knives.Any(k => k.DefIndex == def))
             .Distinct()
             .ToList();
         if (config.KnifeDefIndexes.Count == 0)
             config.KnifeDefIndexes = new BotRandomizerCustomConfig().KnifeDefIndexes;
 
-        config.KnifePaintKits = config.KnifePaintKits
-            .Where(paint => KnifePaints.Contains(paint))
+        var allKnifePaints = _availableKnifePaints.Values
+            .SelectMany(paints => paints)
+            .ToHashSet();
+        config.KnifePaintKits = (config.KnifePaintKits ?? new())
+            .Where(allKnifePaints.Contains)
             .Distinct()
             .ToList();
         if (config.KnifePaintKits.Count == 0)
-            config.KnifePaintKits = new BotRandomizerCustomConfig().KnifePaintKits;
+            config.KnifePaintKits = new BotRandomizerCustomConfig().KnifePaintKits
+                .Where(allKnifePaints.Contains)
+                .ToList();
+
+        var rawKnifePaintsByDefIndex = config.KnifePaintKitsByDefIndex ?? new();
+        if (rawKnifePaintsByDefIndex.Count == 0)
+        {
+            foreach (var defIndex in config.KnifeDefIndexes)
+            {
+                if (!_availableKnifePaints.TryGetValue(defIndex, out var availablePaints))
+                    continue;
+                var available = availablePaints.ToHashSet();
+                var migrated = config.KnifePaintKits.Where(available.Contains).ToList();
+                if (migrated.Count > 0)
+                    rawKnifePaintsByDefIndex[defIndex] = migrated;
+            }
+        }
+
+        var normalizedKnifePaints = new Dictionary<ushort, List<int>>();
+        foreach (var (defIndex, selectedPaints) in rawKnifePaintsByDefIndex)
+        {
+            if (!_availableKnifePaints.TryGetValue(defIndex, out var availablePaints))
+                continue;
+            var available = availablePaints.ToHashSet();
+            var valid = (selectedPaints ?? new List<int>())
+                .Where(available.Contains)
+                .Distinct()
+                .Order()
+                .ToList();
+            normalizedKnifePaints[defIndex] = valid;
+        }
+        config.KnifePaintKitsByDefIndex = normalizedKnifePaints;
+
+        var selectedKnifePaints = config.KnifePaintKits.ToHashSet();
+        config.KnifeSkinSettings = (config.KnifeSkinSettings ?? new())
+            .Where(pair => selectedKnifePaints.Contains(pair.Key) && pair.Value != null)
+            .ToDictionary(
+                pair => pair.Key,
+                pair => new WeaponSkinSettings
+                {
+                    Wear = Math.Clamp(float.IsFinite(pair.Value.Wear) ? pair.Value.Wear : 0.01f, 0.000001f, 1.0f),
+                    Seed = Math.Clamp(pair.Value.Seed, 0, 1000),
+                });
+
+        var rawKnifeSettingsByDefIndex = config.KnifeSkinSettingsByDefIndex ?? new();
+        if (rawKnifeSettingsByDefIndex.Count == 0 && config.KnifeSkinSettings.Count > 0)
+        {
+            foreach (var (defIndex, paints) in normalizedKnifePaints)
+            {
+                var migrated = config.KnifeSkinSettings
+                    .Where(pair => paints.Contains(pair.Key))
+                    .ToDictionary(pair => pair.Key, pair => pair.Value);
+                if (migrated.Count > 0)
+                    rawKnifeSettingsByDefIndex[defIndex] = migrated;
+            }
+        }
+
+        var normalizedKnifeSettings = new Dictionary<ushort, Dictionary<int, WeaponSkinSettings>>();
+        foreach (var (defIndex, settingsByPaint) in rawKnifeSettingsByDefIndex)
+        {
+            if (!normalizedKnifePaints.TryGetValue(defIndex, out var selectedPaints))
+                continue;
+            var selected = selectedPaints.ToHashSet();
+            var validSettings = (settingsByPaint ?? new())
+                .Where(pair => selected.Contains(pair.Key) && pair.Value != null)
+                .ToDictionary(
+                    pair => pair.Key,
+                    pair => new WeaponSkinSettings
+                    {
+                        Wear = Math.Clamp(float.IsFinite(pair.Value.Wear) ? pair.Value.Wear : 0.01f, 0.000001f, 1.0f),
+                        Seed = Math.Clamp(pair.Value.Seed, 0, 1000),
+                    });
+            if (validSettings.Count > 0)
+                normalizedKnifeSettings[defIndex] = validSettings;
+        }
+        config.KnifeSkinSettingsByDefIndex = normalizedKnifeSettings;
+
+        var normalizedWeaponPaints = new Dictionary<ushort, List<int>>();
+        foreach (var (defIndex, selectedPaints) in config.WeaponPaintKits ?? new())
+        {
+            if (!_availableGunPaints.TryGetValue(defIndex, out var availablePaints))
+                continue;
+
+            var available = availablePaints.ToHashSet();
+            var valid = (selectedPaints ?? new List<int>())
+                .Where(available.Contains)
+                .Distinct()
+                .Order()
+                .ToList();
+            if (valid.Count > 0)
+                normalizedWeaponPaints[defIndex] = valid;
+        }
+        config.WeaponPaintKits = normalizedWeaponPaints;
+
+        var normalizedSettings = new Dictionary<ushort, Dictionary<int, WeaponSkinSettings>>();
+        foreach (var (defIndex, selectedPaints) in normalizedWeaponPaints)
+        {
+            if (!(config.WeaponSkinSettings ?? new()).TryGetValue(defIndex, out var weaponSettings))
+                continue;
+
+            var selected = selectedPaints.ToHashSet();
+            var validSettings = new Dictionary<int, WeaponSkinSettings>();
+            foreach (var (paint, settings) in weaponSettings ?? new())
+            {
+                if (!selected.Contains(paint) || settings == null)
+                    continue;
+
+                var wear = float.IsFinite(settings.Wear) ? settings.Wear : 0.01f;
+                var statTrakMin = Math.Clamp(settings.StatTrakMin, 0, 999999);
+                var statTrakMax = Math.Clamp(settings.StatTrakMax, statTrakMin, 999999);
+                validSettings[paint] = new WeaponSkinSettings
+                {
+                    Wear = Math.Clamp(wear, 0.000001f, 1.0f),
+                    Seed = Math.Clamp(settings.Seed, 0, 1000),
+                    StatTrak = settings.StatTrak,
+                    StatTrakMin = statTrakMin,
+                    StatTrakMax = statTrakMax,
+                };
+            }
+
+            if (validSettings.Count > 0)
+                normalizedSettings[defIndex] = validSettings;
+        }
+        config.WeaponSkinSettings = normalizedSettings;
 
         if (config.DropDelaySeconds < 0.1f) config.DropDelaySeconds = 0.1f;
         if (config.DropDelaySeconds > 10f) config.DropDelaySeconds = 10f;
@@ -459,15 +647,100 @@ public class BotRandomizerPlugin : BasePlugin
         return pool[_rng.Next(pool.Length)];
     }
 
-    private int PickKnifePaint()
+    private int PickKnifePaint(ushort defIndex)
     {
-        var pool = _customConfig.KnifePaintKits
-            .Where(paint => KnifePaints.Contains(paint))
-            .Distinct()
-            .ToArray();
-        if (pool.Length == 0) pool = KnifePaints;
+        if (!_availableKnifePaints.TryGetValue(defIndex, out var availablePaints)
+            || availablePaints.Length == 0)
+            availablePaints = KnifePaints;
+
+        var available = availablePaints.ToHashSet();
+        int[] pool;
+        if (_customConfig.KnifePaintKitsByDefIndex.TryGetValue(defIndex, out var selectedPaints))
+        {
+            pool = selectedPaints.Count > 0
+                ? selectedPaints.Where(available.Contains).Distinct().ToArray()
+                : availablePaints;
+        }
+        else
+        {
+            pool = _customConfig.KnifePaintKits
+                .Where(available.Contains)
+                .Distinct()
+                .ToArray();
+        }
+        if (pool.Length == 0) pool = availablePaints;
         return pool[_rng.Next(pool.Length)];
     }
+
+    private HookResult OnSubclassCreate(CCSPlayerController? player, CommandInfo command)
+    {
+        if (player == null || !player.IsValid || command.ArgCount < 2
+            || !ushort.TryParse(command.GetArg(1), out var defIndex)
+            || !Knives.Any(knife => knife.DefIndex == defIndex))
+            return HookResult.Continue;
+
+        PrunePendingGroundKnives();
+        _pendingGroundKnives.Add(new PendingGroundKnife
+        {
+            DefIndex = defIndex,
+            PaintKit = PickKnifePaint(defIndex),
+            CreatedAt = DateTime.UtcNow,
+        });
+        return HookResult.Continue;
+    }
+
+    private void OnEntitySpawned(CEntityInstance entity)
+    {
+        if (_pendingGroundKnives.Count == 0 || entity == null || !entity.IsValid)
+            return;
+
+        var name = entity.DesignerName;
+        if (string.IsNullOrEmpty(name) || (!name.Contains("knife") && name != "weapon_bayonet"))
+            return;
+
+        var weapon = new CBasePlayerWeapon(entity.Handle);
+        AddTimer(0.03f, () => TryApplyPendingGroundKnife(weapon, 0));
+    }
+
+    private void TryApplyPendingGroundKnife(CBasePlayerWeapon weapon, int attempt)
+    {
+        if (weapon == null || !weapon.IsValid) return;
+        PrunePendingGroundKnives();
+
+        var item = weapon.AttributeManager?.Item;
+        var actualDefIndex = item?.ItemDefinitionIndex ?? 0;
+        var name = weapon.DesignerName;
+        if (KnifeDefIndexByName.TryGetValue(name, out var namedDefIndex))
+            actualDefIndex = namedDefIndex;
+
+        var pendingIndex = _pendingGroundKnives.FindIndex(pending => pending.DefIndex == actualDefIndex);
+        if (pendingIndex < 0 && attempt >= 2 && _pendingGroundKnives.Count > 0)
+            pendingIndex = 0;
+
+        if (pendingIndex < 0)
+        {
+            if (attempt < 4)
+                AddTimer(0.06f + attempt * 0.04f, () => TryApplyPendingGroundKnife(weapon, attempt + 1));
+            return;
+        }
+
+        var pending = _pendingGroundKnives[pendingIndex];
+        _pendingGroundKnives.RemoveAt(pendingIndex);
+        ApplyKnifeAttributes(weapon, pending.DefIndex, pending.PaintKit);
+        AddTimer(0.08f, () =>
+        {
+            if (weapon != null && weapon.IsValid)
+                ApplyKnifeAttributes(weapon, pending.DefIndex, pending.PaintKit);
+        });
+        AddTimer(0.20f, () =>
+        {
+            if (weapon != null && weapon.IsValid)
+                ApplyKnifeAttributes(weapon, pending.DefIndex, pending.PaintKit);
+        });
+    }
+
+    private void PrunePendingGroundKnives()
+        => _pendingGroundKnives.RemoveAll(pending => (DateTime.UtcNow - pending.CreatedAt).TotalSeconds > 3.0);
 
     private static (string DesignerName, ushort DefIndex, string ModelPath) GetKnifeByDefIndex(ushort defIndex)
         => Knives.FirstOrDefault(k => k.DefIndex == defIndex) is var knife && knife.DefIndex != 0
@@ -506,7 +779,7 @@ public class BotRandomizerPlugin : BasePlugin
             _botKnives[player.Slot] = PickKnife().DefIndex;
 
         if (!_botKnifePaints.ContainsKey(player.Slot))
-            _botKnifePaints[player.Slot] = PickKnifePaint();
+            _botKnifePaints[player.Slot] = PickKnifePaint(_botKnives[player.Slot]);
 
         if (!_botGloves.ContainsKey(player.Slot))
             _botGloves[player.Slot] = _rng.Next(Gloves.Length);
@@ -600,7 +873,7 @@ public class BotRandomizerPlugin : BasePlugin
 
             if (!_botKnifePaints.TryGetValue(player.Slot, out int paintKit))
             {
-                paintKit = PickKnifePaint();
+                paintKit = PickKnifePaint(knifeDefIndex);
                 _botKnifePaints[player.Slot] = paintKit;
             }
 
@@ -952,7 +1225,7 @@ public class BotRandomizerPlugin : BasePlugin
 
         if (!_botKnifePaints.TryGetValue(player.Slot, out int paintKit))
         {
-            paintKit = PickKnifePaint();
+            paintKit = PickKnifePaint(knifeDefIndex);
             _botKnifePaints[player.Slot] = paintKit;
         }
 
@@ -1119,20 +1392,39 @@ public class BotRandomizerPlugin : BasePlugin
         ushort defIndex = weapon.AttributeManager?.Item?.ItemDefinitionIndex ?? 0;
         if (defIndex == 0) return;
 
-        if (!GunPaints.TryGetValue(defIndex, out int[]? paints) || paints == null || paints.Length == 0)
+        if (!_availableGunPaints.TryGetValue(defIndex, out int[]? paints) || paints.Length == 0)
             return;
 
+        if (_customConfig.WeaponPaintKits.TryGetValue(defIndex, out var selectedPaints)
+            && selectedPaints.Count > 0)
+            paints = selectedPaints.ToArray();
+
         var key = (slot, defIndex);
-        if (!_botGunPaints.TryGetValue(key, out int paint))
+        if (!_botGunSkins.TryGetValue(key, out var skin))
         {
-            paint = paints[_rng.Next(paints.Length)];
-            _botGunPaints[key] = paint;
+            var paint = paints[_rng.Next(paints.Length)];
+            var settings = new WeaponSkinSettings();
+            if (_customConfig.WeaponSkinSettings.TryGetValue(defIndex, out var weaponSettings)
+                && weaponSettings.TryGetValue(paint, out var configuredSettings))
+                settings = configuredSettings;
+
+            skin = new BotGunSkin
+            {
+                PaintKit = paint,
+                Wear = settings.Wear,
+                Seed = settings.Seed,
+                StatTrak = settings.StatTrak,
+                StatTrakValue = settings.StatTrak
+                    ? _rng.Next(settings.StatTrakMin, settings.StatTrakMax + 1)
+                    : 0,
+            };
+            _botGunSkins[key] = skin;
         }
 
-        ApplySkinToWeapon(weapon, defIndex, paint);
+        ApplySkinToWeapon(weapon, defIndex, skin);
     }
 
-    private void ApplySkinToWeapon(CEconEntity weapon, ushort defIndex, int paintKit)
+    private void ApplySkinToWeapon(CEconEntity weapon, ushort defIndex, BotGunSkin skin)
     {
         if (_setAttrByName == null) return;
 
@@ -1146,24 +1438,35 @@ public class BotRandomizerPlugin : BasePlugin
             item.NetworkedDynamicAttributes.Attributes.RemoveAll();
             AssignItemId(item);
 
-            weapon.FallbackPaintKit = paintKit;
-            weapon.FallbackSeed = 0;
-            weapon.FallbackWear = 0.01f;
+            item.EntityQuality = skin.StatTrak ? 9 : 0;
+            weapon.FallbackPaintKit = skin.PaintKit;
+            weapon.FallbackSeed = skin.Seed;
+            weapon.FallbackWear = skin.Wear;
+            weapon.FallbackStatTrak = skin.StatTrak ? skin.StatTrakValue : -1;
 
-            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture prefab", paintKit);
-            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture seed", 0f);
-            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture wear", 0.01f);
+            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture prefab", skin.PaintKit);
+            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture seed", skin.Seed);
+            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture wear", skin.Wear);
 
-            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture prefab", paintKit);
-            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture seed", 0f);
-            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture wear", 0.01f);
+            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture prefab", skin.PaintKit);
+            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture seed", skin.Seed);
+            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture wear", skin.Wear);
+
+            if (skin.StatTrak)
+            {
+                var statTrakValue = UIntAsFloat((uint)skin.StatTrakValue);
+                _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "kill eater", statTrakValue);
+                _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "kill eater score type", 0f);
+                _setAttrByName.Invoke(item.AttributeList.Handle, "kill eater", statTrakValue);
+                _setAttrByName.Invoke(item.AttributeList.Handle, "kill eater score type", 0f);
+            }
 
             Utilities.SetStateChanged(weapon, "CEconEntity", "m_AttributeManager");
 
             // Flip the weapon "body" bodygroup so the paint maps to the correct
             // position: legacy-model skins use UV layout 1, current-model skins
             // use layout 0. Without this the texture is misaligned on the mesh.
-            bool isLegacy = _legacyPaints.Contains((defIndex, paintKit));
+            bool isLegacy = _legacyPaints.Contains((defIndex, skin.PaintKit));
             weapon.AcceptInput("SetBodygroup", value: $"body,{(isLegacy ? 1 : 0)}");
         }
         catch (Exception ex)
@@ -1176,15 +1479,25 @@ public class BotRandomizerPlugin : BasePlugin
         }
     }
 
+    private static float UIntAsFloat(uint value)
+        => BitConverter.Int32BitsToSingle(unchecked((int)value));
+
     private void ApplyKnifeAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit)
     {
-        int seed = GetKnifeSeed(defIndex, paintKit);
+        WeaponSkinSettings? settings = null;
+        if (_customConfig.KnifeSkinSettingsByDefIndex.TryGetValue(defIndex, out var settingsByPaint)
+            && settingsByPaint.TryGetValue(paintKit, out var configuredByDefIndex))
+            settings = configuredByDefIndex;
+        else if (_customConfig.KnifeSkinSettings.TryGetValue(paintKit, out var configuredLegacy))
+            settings = configuredLegacy;
+        int seed = settings?.Seed ?? GetKnifeSeed(defIndex, paintKit);
+        float wear = settings?.Wear ?? 0.01f;
 
         weapon.AcceptInput("ChangeSubclass", value: defIndex.ToString());
-        ApplyKnifeEconomyAttributes(weapon, defIndex, paintKit, seed);
+        ApplyKnifeEconomyAttributes(weapon, defIndex, paintKit, seed, wear);
     }
 
-    private void ApplyKnifeEconomyAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit, int seed)
+    private void ApplyKnifeEconomyAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit, int seed, float wear)
     {
         if (weapon == null || !weapon.IsValid) return;
 
@@ -1202,15 +1515,15 @@ public class BotRandomizerPlugin : BasePlugin
         {
             weapon.FallbackPaintKit = paintKit;
             weapon.FallbackSeed = seed;
-            weapon.FallbackWear = 0.01f;
+            weapon.FallbackWear = wear;
 
             _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture prefab", paintKit);
             _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture seed", (float)seed);
-            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture wear", 0.01f);
+            _setAttrByName.Invoke(item.NetworkedDynamicAttributes.Handle, "set item texture wear", wear);
 
             _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture prefab", paintKit);
             _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture seed", (float)seed);
-            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture wear", 0.01f);
+            _setAttrByName.Invoke(item.AttributeList.Handle, "set item texture wear", wear);
         }
 
         Utilities.SetStateChanged(weapon, "CEconEntity", "m_AttributeManager");
@@ -1306,38 +1619,98 @@ public class BotRandomizerPlugin : BasePlugin
         item.ItemIDHigh = (uint)(id >> 32);
     }
 
-    // Build the legacy-model lookup from skins_en.json.
+    // Build valid paint pools and the legacy-model lookup from the bundled catalogs.
     // Each entry: { "weapon_defindex": int, "paint": int|string, "legacy_model": bool }.
-    private void LoadLegacyPaints()
+    private void LoadSkinData()
     {
         _legacyPaints.Clear();
+        _availableGunPaints.Clear();
+        _availableKnifePaints.Clear();
+        foreach (var (defIndex, paints) in GunPaints)
+            _availableGunPaints[defIndex] = paints;
+        foreach (var knife in Knives)
+            _availableKnifePaints[knife.DefIndex] = KnifePaints;
+        LoadKnifeSkinData();
+
         try
         {
             var path = Path.Combine(ModuleDirectory, "skins_en.json");
             if (!File.Exists(path))
             {
-                Logger.LogWarning("[BotRandomizer] skins_en.json not found; weapon skins may map to the wrong model position");
+                Logger.LogWarning("[BotRandomizer] skins_en.json not found; using the built-in weapon skin list");
                 return;
             }
 
+            var loadedPaints = GunPaints.Keys.ToDictionary(key => key, _ => new HashSet<int>());
             using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
             foreach (var el in doc.RootElement.EnumerateArray())
             {
-                if (!el.TryGetProperty("legacy_model", out var legacyEl)
-                    || legacyEl.ValueKind != System.Text.Json.JsonValueKind.True)
-                    continue;
                 if (!el.TryGetProperty("weapon_defindex", out var defEl)) continue;
                 if (!el.TryGetProperty("paint", out var paintEl)) continue;
 
-                _legacyPaints.Add(((ushort)ReadInt(defEl), ReadInt(paintEl)));
+                var defIndex = (ushort)ReadInt(defEl);
+                var paint = ReadInt(paintEl);
+                if (paint > 0 && loadedPaints.TryGetValue(defIndex, out var pool))
+                    pool.Add(paint);
+
+                if (el.TryGetProperty("legacy_model", out var legacyEl)
+                    && legacyEl.ValueKind == System.Text.Json.JsonValueKind.True)
+                    _legacyPaints.Add((defIndex, paint));
+            }
+
+            foreach (var (defIndex, paints) in loadedPaints)
+            {
+                if (paints.Count > 0)
+                    _availableGunPaints[defIndex] = paints.Order().ToArray();
+            }
+
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"[BotRandomizer] LoadSkinData failed; using the built-in weapon skin list: {ex.Message}");
+        }
+
+        // "paint"/"weapon_defindex" may be encoded as a JSON number or string.
+        static int ReadInt(System.Text.Json.JsonElement e) =>
+            e.ValueKind == System.Text.Json.JsonValueKind.Number
+                ? e.GetInt32()
+                : int.TryParse(e.GetString(), out var v) ? v : 0;
+    }
+
+    private void LoadKnifeSkinData()
+    {
+        try
+        {
+            var path = Path.Combine(ModuleDirectory, "knife_skins.json");
+            if (!File.Exists(path))
+            {
+                Logger.LogWarning("[BotRandomizer] knife_skins.json not found; using the built-in knife skin list");
+                return;
+            }
+
+            var loadedPaints = Knives.ToDictionary(knife => knife.DefIndex, _ => new HashSet<int>());
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                if (!el.TryGetProperty("knife_defindex", out var defEl)) continue;
+                if (!el.TryGetProperty("paint", out var paintEl)) continue;
+                var defIndex = (ushort)ReadInt(defEl);
+                var paint = ReadInt(paintEl);
+                if (paint > 0 && loadedPaints.TryGetValue(defIndex, out var pool))
+                    pool.Add(paint);
+            }
+
+            foreach (var (defIndex, paints) in loadedPaints)
+            {
+                if (paints.Count > 0)
+                    _availableKnifePaints[defIndex] = paints.Order().ToArray();
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError($"[BotRandomizer] LoadLegacyPaints failed: {ex.Message}");
+            Logger.LogError($"[BotRandomizer] Knife skin catalog failed; using the built-in list: {ex.Message}");
         }
 
-        // "paint"/"weapon_defindex" may be encoded as a JSON number or string.
         static int ReadInt(System.Text.Json.JsonElement e) =>
             e.ValueKind == System.Text.Json.JsonValueKind.Number
                 ? e.GetInt32()
@@ -1469,8 +1842,8 @@ public class BotRandomizerPlugin : BasePlugin
         _droppedKnifeCopySlots.Remove(slot);
         _knifePickupFixSlots.Remove(slot);
         _restoringKnifeSlots.Remove(slot);
-        foreach (var key in _botGunPaints.Keys.Where(k => k.Slot == slot).ToList())
-            _botGunPaints.Remove(key);
+        foreach (var key in _botGunSkins.Keys.Where(k => k.Slot == slot).ToList())
+            _botGunSkins.Remove(key);
 
         return HookResult.Continue;
     }

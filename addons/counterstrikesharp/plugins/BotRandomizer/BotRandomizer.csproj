@@ -19,6 +19,7 @@
   <ItemGroup>
     <None Update="gamedata\*.*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="skins_en.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\..\..\BotKnifeSkins.zh-CN.json" Link="knife_skins.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
