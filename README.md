@@ -24,7 +24,7 @@ Aims to enhance your experience when playing against bots offline or with friend
 
 ### Windows
 
-1. Download the latest **CS2BotImprover.zip** in [Releases](https://github.com/ed0ard/CS2-Bot-Improver/releases) and unzip it
+1. Download the latest Windows package from [Releases](https://github.com/YuiKira/CS2-Bot-Improver/releases) and unzip it
 
    (If you run a dedicated server that is not only for bot matches, please download **CS2BotImprover_rules_unchanged.zip**)
 
@@ -218,6 +218,14 @@ Add `-disable_workshop_command_filtering` to your launch options
 ### How to surf normally
 
 Run `sv_standable_normal 0.7` in your game console
+
+## Maintainer Notes
+
+### Runtime knife skin initialization
+
+CS2 clients cache a knife's material when the entity is transmitted for the first time. Updating the economy attributes after that first transmission can change the displayed skin name while leaving the original material on the model.
+
+`BotRandomizer` prevents this by temporarily removing newly spawned knife entities from `CheckTransmit`. During that window it applies the item definition, paint kit, seed, wear, fallback fields, item ID, and economy attributes. The entity is released after initialization, so the first client snapshot already contains the finished skin. Keep this first-transmission barrier for both `subclass_create` knives and replacement knives generated for Bot drops; delayed attribute rewrites alone are not sufficient.
 
 ## Credits
 [metamod-source](https://github.com/alliedmodders/metamod-source)  

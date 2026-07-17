@@ -83,7 +83,7 @@ internal sealed class PendingGroundKnife
 public class BotRandomizerPlugin : BasePlugin
 {
     public override string ModuleName => "BotRandomizer";
-    public override string ModuleVersion => "1.2.4";
+    public override string ModuleVersion => "1.3.1";
     public override string ModuleAuthor => "ed0ard & Misaka17032";
     public override string ModuleDescription => "Randomize knives, gloves, weapon skins, agent models, music kits for bots";
 
@@ -98,6 +98,7 @@ public class BotRandomizerPlugin : BasePlugin
     private readonly HashSet<int> _knifePickupFixSlots = new();
     private readonly HashSet<int> _restoringKnifeSlots = new();
     private readonly List<PendingGroundKnife> _pendingGroundKnives = new();
+    private readonly Dictionary<uint, uint> _hiddenKnifeEntities = new();
     private BotRandomizerCustomConfig _customConfig = new();
     private const int KnifeCopiesPerBot = 5;
     private const float KnifeDropBackDistance = 100f;
@@ -422,6 +423,7 @@ public class BotRandomizerPlugin : BasePlugin
             _knifePickupFixSlots.Clear();
             _restoringKnifeSlots.Clear();
             _pendingGroundKnives.Clear();
+            _hiddenKnifeEntities.Clear();
             foreach (var m in CtModels) Server.PrecacheModel(m);
             foreach (var m in TModels) Server.PrecacheModel(m);
         });
@@ -435,6 +437,7 @@ public class BotRandomizerPlugin : BasePlugin
         AddCommand("bot_randomizer_reload", "Reload BotRandomizer cosmetic config", CmdReloadConfig);
         AddCommandListener("subclass_create", OnSubclassCreate, HookMode.Pre);
         RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawned);
+        RegisterListener<Listeners.CheckTransmit>(OnCheckTransmit);
 
         // Skin a bot's gun the instant the engine hands it the weapon.
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
@@ -463,6 +466,7 @@ public class BotRandomizerPlugin : BasePlugin
         _botKnifePaints.Clear();
         _botGunSkins.Clear();
         _pendingGroundKnives.Clear();
+        _hiddenKnifeEntities.Clear();
         command.ReplyToCommand("[BotRandomizer] Cosmetic config reloaded.");
     }
 
@@ -691,7 +695,7 @@ public class BotRandomizerPlugin : BasePlugin
 
     private void OnEntitySpawned(CEntityInstance entity)
     {
-        if (_pendingGroundKnives.Count == 0 || entity == null || !entity.IsValid)
+        if (entity == null || !entity.IsValid)
             return;
 
         var name = entity.DesignerName;
@@ -699,7 +703,27 @@ public class BotRandomizerPlugin : BasePlugin
             return;
 
         var weapon = new CBasePlayerWeapon(entity.Handle);
+        uint raw = weapon.EntityHandle.Raw;
+        _hiddenKnifeEntities[raw] = weapon.Index;
+        AddTimer(0.55f, () => _hiddenKnifeEntities.Remove(raw));
+
+        if (_pendingGroundKnives.Count == 0)
+            return;
+
         AddTimer(0.03f, () => TryApplyPendingGroundKnife(weapon, 0));
+    }
+
+    private void OnCheckTransmit(CCheckTransmitInfoList infoList)
+    {
+        if (_hiddenKnifeEntities.Count == 0)
+            return;
+
+        var hiddenIndexes = _hiddenKnifeEntities.Values.Distinct().ToArray();
+        foreach (var (info, _) in infoList)
+        {
+            foreach (uint index in hiddenIndexes)
+                info.TransmitEntities.Remove(index);
+        }
     }
 
     private void TryApplyPendingGroundKnife(CBasePlayerWeapon weapon, int attempt)
@@ -721,6 +745,8 @@ public class BotRandomizerPlugin : BasePlugin
         {
             if (attempt < 4)
                 AddTimer(0.06f + attempt * 0.04f, () => TryApplyPendingGroundKnife(weapon, attempt + 1));
+            else
+                Logger.LogWarning($"[BotRandomizer] Could not match spawned knife {name} ({weapon.EntityHandle.Raw}) to subclass_create");
             return;
         }
 
