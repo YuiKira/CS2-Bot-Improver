@@ -8,9 +8,14 @@
     <Prefer32Bit>false</Prefer32Bit>
     <AssemblyName>CS2 Bot Tools</AssemblyName>
     <RootNamespace>CS2BotTools</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net48" Version="1.0.3" PrivateAssets="all" />

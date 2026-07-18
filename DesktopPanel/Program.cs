@@ -41,6 +41,7 @@ internal sealed class MainForm : Form
         ClientSize = new Size(1380, 840);
         MinimumSize = new Size(1080, 680);
         BackColor = Color.FromArgb(238, 240, 243);
+        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         Controls.Add(_webView);
         Shown += OnShown;
     }
