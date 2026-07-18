@@ -164,6 +164,14 @@ internal sealed class MainForm : Form
         "BotRandomizer",
         "BotRandomizer.custom.json");
 
+    private static string ConfigBackupPath(string root) => Path.Combine(
+        root,
+        "addons",
+        "counterstrikesharp",
+        "plugins",
+        "BotRandomizer",
+        "BotRandomizer.custom.backup.json");
+
     private JToken ReadConfig(string root)
     {
         if (string.IsNullOrWhiteSpace(root) || !File.Exists(ConfigPath(root)))
@@ -186,7 +194,22 @@ internal sealed class MainForm : Form
         if (!Directory.Exists(pluginDirectory))
             throw new DirectoryNotFoundException("所选文件夹中没有找到 BotRandomizer 插件。");
         var path = ConfigPath(root);
-        File.WriteAllText(path, config.ToString(Formatting.Indented), _utf8);
+        var tempPath = path + ".tmp";
+        try
+        {
+            File.WriteAllText(tempPath, config.ToString(Formatting.Indented), _utf8);
+            if (File.Exists(path))
+            {
+                File.Copy(path, ConfigBackupPath(root), true);
+                File.Replace(tempPath, path, null, true);
+            }
+            else
+                File.Move(tempPath, path);
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
         return path;
     }
 

@@ -206,6 +206,12 @@ After modification, if you wanna **play with bots again**, navigate to `game/csg
 2. Rename the `BotRandomizer` folder to `BotRandomizer_disabled`  
 3. Navigate to `addons/counterstrikesharp/configs/core.json` and set `FollowCS2ServerGuidelines` to `true`
 
+### Where equipment panel settings are stored
+
+The equipment panel saves its settings to `game/csgo/addons/counterstrikesharp/plugins/BotRandomizer/BotRandomizer.custom.json`. Back up this file when moving the installation to another computer. Each save also keeps the previous version as `BotRandomizer.custom.backup.json` in the same directory.
+
+Release packages do not contain the runtime `BotRandomizer.custom.json`, so extracting an update over an existing installation preserves the user's weapon, knife, wear, seed, and StatTrak selections. On a clean installation, the plugin creates this file with defaults on first load.
+
 ### How to manually disable bot steam profiles
 
 1. Open the root of CS2 and navigate to `game/csgo/addons`  
