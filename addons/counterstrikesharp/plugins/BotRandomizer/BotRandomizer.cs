@@ -76,7 +76,7 @@ internal sealed class PendingGroundKnife
 public class BotRandomizerPlugin : BasePlugin
 {
     public override string ModuleName => "BotRandomizer";
-    public override string ModuleVersion => "1.4.0";
+    public override string ModuleVersion => "1.4.1";
     public override string ModuleAuthor => "ed0ard & Misaka17032";
     public override string ModuleDescription => "Randomize knives, gloves, weapon skins, agent models, music kits for bots";
 
@@ -727,16 +727,21 @@ public class BotRandomizerPlugin : BasePlugin
 
         var pending = _pendingGroundKnives[pendingIndex];
         _pendingGroundKnives.RemoveAt(pendingIndex);
-        ApplyKnifeAttributes(weapon, pending.DefIndex, pending.PaintKit);
+        ApplyConfiguredKnifeEconomyAttributes(weapon, pending.DefIndex, pending.PaintKit);
         AddTimer(0.08f, () =>
         {
             if (weapon != null && weapon.IsValid)
-                ApplyKnifeAttributes(weapon, pending.DefIndex, pending.PaintKit);
+                ApplyConfiguredKnifeEconomyAttributes(weapon, pending.DefIndex, pending.PaintKit);
         });
         AddTimer(0.20f, () =>
         {
-            if (weapon != null && weapon.IsValid)
-                ApplyKnifeAttributes(weapon, pending.DefIndex, pending.PaintKit);
+            if (weapon != null
+                && weapon.IsValid
+                && ApplyConfiguredKnifeEconomyAttributes(weapon, pending.DefIndex, pending.PaintKit))
+            {
+                uint raw = weapon.EntityHandle.Raw;
+                Server.NextFrame(() => _hiddenKnifeEntities.Remove(raw));
+            }
         });
     }
 
@@ -1127,7 +1132,13 @@ public class BotRandomizerPlugin : BasePlugin
     private static float UIntAsFloat(uint value)
         => BitConverter.Int32BitsToSingle(unchecked((int)value));
 
-    private void ApplyKnifeAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit)
+    private bool ApplyKnifeAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit)
+    {
+        weapon.AcceptInput("ChangeSubclass", value: defIndex.ToString());
+        return ApplyConfiguredKnifeEconomyAttributes(weapon, defIndex, paintKit);
+    }
+
+    private bool ApplyConfiguredKnifeEconomyAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit)
     {
         WeaponSkinSettings? settings = null;
         if (_customConfig.KnifeSkinSettingsByDefIndex.TryGetValue(defIndex, out var settingsByPaint)
@@ -1138,16 +1149,15 @@ public class BotRandomizerPlugin : BasePlugin
         int seed = settings?.Seed ?? GetKnifeSeed(defIndex, paintKit);
         float wear = settings?.Wear ?? 0.01f;
 
-        weapon.AcceptInput("ChangeSubclass", value: defIndex.ToString());
-        ApplyKnifeEconomyAttributes(weapon, defIndex, paintKit, seed, wear);
+        return ApplyKnifeEconomyAttributes(weapon, defIndex, paintKit, seed, wear);
     }
 
-    private void ApplyKnifeEconomyAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit, int seed, float wear)
+    private bool ApplyKnifeEconomyAttributes(CBasePlayerWeapon weapon, ushort defIndex, int paintKit, int seed, float wear)
     {
-        if (weapon == null || !weapon.IsValid) return;
+        if (weapon == null || !weapon.IsValid) return false;
 
         var item = weapon.AttributeManager?.Item;
-        if (item == null) return;
+        if (item == null) return false;
 
         item.ItemDefinitionIndex = defIndex;
         item.EntityQuality = 3;
@@ -1172,6 +1182,7 @@ public class BotRandomizerPlugin : BasePlugin
         }
 
         Utilities.SetStateChanged(weapon, "CEconEntity", "m_AttributeManager");
+        return _setAttrByName != null && paintKit > 0;
     }
 
     private static int GetKnifeSeed(ushort defIndex, int paintKit)
