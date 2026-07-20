@@ -332,8 +332,6 @@ internal sealed class MainForm : Form
         },
         ["knife_skin_settings_by_def_index"] = new JObject(),
         ["weapon_paint_kits"] = new JObject(),
-        ["weapon_skin_settings"] = new JObject(),
-        ["auto_drop_bot_knife_copy"] = true,
-        ["drop_delay_seconds"] = 1.0
+        ["weapon_skin_settings"] = new JObject()
     };
 }

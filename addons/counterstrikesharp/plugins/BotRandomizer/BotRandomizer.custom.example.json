@@ -19,7 +19,5 @@
   },
   "knife_skin_settings_by_def_index": {},
   "weapon_paint_kits": {},
-  "weapon_skin_settings": {},
-  "auto_drop_bot_knife_copy": true,
-  "drop_delay_seconds": 1.0
+  "weapon_skin_settings": {}
 }

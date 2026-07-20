@@ -96,8 +96,8 @@ function normalizeConfig(value) {
   next.knife_skin_settings_by_def_index = next.knife_skin_settings_by_def_index || {};
   next.weapon_paint_kits = next.weapon_paint_kits || {};
   next.weapon_skin_settings = next.weapon_skin_settings || {};
-  next.auto_drop_bot_knife_copy = next.auto_drop_bot_knife_copy !== false;
-  next.drop_delay_seconds = Number(next.drop_delay_seconds ?? 1);
+  delete next.auto_drop_bot_knife_copy;
+  delete next.drop_delay_seconds;
 
   if (!Object.keys(next.knife_paint_kits_by_def_index).length) {
     for (const defIndex of next.knife_def_indexes) {
@@ -298,7 +298,6 @@ function renderKnives() {
   $("knifeSkinGrid").innerHTML = skinCards(filteredKnifeSkins(), selected, focusedKnife, "knife");
   const total = Object.values(config.knife_paint_kits_by_def_index).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
   $("knifeTotal").textContent = total || "全部";
-  $("autoDrop").checked = !!config.auto_drop_bot_knife_copy; $("dropDelay").value = config.drop_delay_seconds;
   renderKnifeDetail();
 }
 
@@ -412,8 +411,6 @@ $("knifeSelectVisible").addEventListener("click", () => {
 });
 $("knifeClear").addEventListener("click", () => { config.knife_paint_kits_by_def_index[String(activeKnife)] = []; delete config.knife_skin_settings_by_def_index[String(activeKnife)]; setDirty(); renderKnives(); });
 
-$("autoDrop").addEventListener("change", event => { config.auto_drop_bot_knife_copy = event.target.checked; setDirty(); });
-$("dropDelay").addEventListener("change", event => { config.drop_delay_seconds = Math.min(10, Math.max(.1, Number(event.target.value))); event.target.value = config.drop_delay_seconds; setDirty(); });
 $("browse").addEventListener("click", async () => { try { applyLoaded(await api("/api/browse", {})); } catch (error) { showToast(error.message, true); } });
 $("reload").addEventListener("click", async () => { try { applyLoaded(await api("/api/load", {root: $("rootPath").value.trim()})); showToast("配置已重新加载"); } catch (error) { showToast(error.message, true); } });
 $("save").addEventListener("click", async () => {
