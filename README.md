@@ -212,6 +212,15 @@ The equipment panel saves its settings to `game/csgo/addons/counterstrikesharp/p
 
 Release packages do not contain the runtime `BotRandomizer.custom.json`, so extracting an update over an existing installation preserves the user's weapon, knife, wear, seed, and StatTrak selections. On a clean installation, the plugin creates this file with defaults on first load.
 
+### How to completely uninstall on Windows
+
+1. Exit CS2 and the original control panel.
+2. Run `CS2 Bot Tools.exe` from the installed `game/csgo` directory.
+3. Click `卸载 CS2-Bot-Improver` in the lower-left corner and confirm both prompts.
+4. After the launcher closes and reports completion, open CS2's Steam properties, select `Installed Files`, and verify the integrity of the game files.
+
+The uninstaller removes the project plugins, desktop tools, generated equipment configuration, and local WebView2 data using the packaged file manifest. It restores the included Online `gameinfo.gi` before cleanup and leaves unrelated files added by other plugins untouched. Steam verification is still required for CS2-owned configuration files modified by the project.
+
 ### How to manually disable bot steam profiles
 
 1. Open the root of CS2 and navigate to `game/csgo/addons`  

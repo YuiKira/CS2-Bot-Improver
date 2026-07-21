@@ -18,8 +18,14 @@ internal static class Program
     private static extern bool SetProcessDPIAware();
 
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        if (Uninstaller.IsWorkerInvocation(args))
+        {
+            Uninstaller.RunWorker(args);
+            return;
+        }
+
         try { SetProcessDPIAware(); } catch { }
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
@@ -135,6 +141,16 @@ internal sealed class MainForm : Form
                 case "/api/launch-original":
                     LaunchOriginalPanel();
                     Reply(id, new JObject { ["ok"] = true });
+                    break;
+                case "/api/uninstall-info":
+                    _selectedRoot = body.Value<string>("root") ?? string.Empty;
+                    Reply(id, Uninstaller.GetInfo(_appDirectory, _selectedRoot));
+                    break;
+                case "/api/uninstall":
+                    _selectedRoot = body.Value<string>("root") ?? string.Empty;
+                    Uninstaller.Start(_appDirectory, _selectedRoot);
+                    Reply(id, new JObject { ["ok"] = true });
+                    BeginInvoke(new Action(Close));
                     break;
                 case "/api/shutdown":
                     Reply(id, new JObject { ["ok"] = true });

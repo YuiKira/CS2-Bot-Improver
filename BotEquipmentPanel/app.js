@@ -13,6 +13,7 @@ let focusedKnife = null;
 let dirty = false;
 let toastTimer = null;
 let desktopRequestId = 0;
+let uninstallInfo = null;
 const desktopRequests = new Map();
 
 function escapeHtml(value) {
@@ -431,8 +432,57 @@ $("enableBotMode").addEventListener("click", async () => {
   } catch (error) { showToast(error.message, true); }
 });
 $("openOriginal").addEventListener("click", async () => { try { await api("/api/launch-original", {}); } catch (error) { showToast(error.message, true); } });
+$("uninstall").addEventListener("click", async () => {
+  try {
+    uninstallInfo = await api("/api/uninstall-info", {root: $("rootPath").value.trim()});
+    if (!uninstallInfo.can_uninstall) {
+      showToast(`请先退出：${uninstallInfo.blockers.join("、")}`, true);
+      return;
+    }
+    $("uninstallCount").textContent = uninstallInfo.file_count;
+    $("uninstallRoot").textContent = uninstallInfo.root;
+    setUninstallStep(1);
+    $("uninstallModal").hidden = false;
+    $("uninstallCancel").focus();
+  } catch (error) { showToast(error.message, true); }
+});
+$("uninstallCancel").addEventListener("click", closeUninstallModal);
+$("uninstallContinue").addEventListener("click", () => setUninstallStep(2));
+$("uninstallConfirm").addEventListener("click", async () => {
+  const hadUnsavedChanges = dirty;
+  try {
+    $("uninstallConfirm").disabled = true;
+    $("uninstallCancel").disabled = true;
+    setDirty(false);
+    await api("/api/uninstall", {root: uninstallInfo.root});
+  } catch (error) {
+    $("uninstallConfirm").disabled = false;
+    $("uninstallCancel").disabled = false;
+    setDirty(hadUnsavedChanges);
+    closeUninstallModal();
+    showToast(error.message, true);
+  }
+});
+$("uninstallModal").addEventListener("click", event => { if (event.target === $("uninstallModal")) closeUninstallModal(); });
+document.addEventListener("keydown", event => { if (event.key === "Escape" && !$("uninstallModal").hidden) closeUninstallModal(); });
 $("shutdown").addEventListener("click", async () => { try { await api("/api/shutdown", {}); } catch {} });
 window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
+
+function setUninstallStep(step) {
+  $("uninstallFirst").hidden = step !== 1;
+  $("uninstallSecond").hidden = step !== 2;
+  $("uninstallContinue").hidden = step !== 1;
+  $("uninstallConfirm").hidden = step !== 2;
+  $("uninstallSubtitle").textContent = step === 1 ? "卸载前请确认以下事项" : "请再次确认卸载范围";
+  if (step === 2) $("uninstallConfirm").focus();
+}
+
+function closeUninstallModal() {
+  $("uninstallModal").hidden = true;
+  uninstallInfo = null;
+  $("uninstallConfirm").disabled = false;
+  $("uninstallCancel").disabled = false;
+}
 
 (async function init() {
   try {

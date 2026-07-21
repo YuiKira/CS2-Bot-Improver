@@ -20,6 +20,7 @@
       </nav>
       <div class="sidebar-spacer"></div>
       <button id="openOriginal" class="secondary-command">打开原始控制面板</button>
+      <button id="uninstall" class="danger-command">卸载 CS2-Bot-Improver</button>
       <button id="shutdown" class="quiet-command">关闭装备面板</button>
     </aside>
 
@@ -113,6 +114,28 @@
         </aside>
       </section>
     </main>
+  </div>
+  <div id="uninstallModal" class="modal-backdrop" hidden>
+    <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="uninstallTitle">
+      <div class="modal-head">
+        <span class="warning-mark">!</span>
+        <div><h2 id="uninstallTitle">卸载 CS2-Bot-Improver</h2><p id="uninstallSubtitle">卸载前请确认以下事项</p></div>
+      </div>
+      <div id="uninstallFirst" class="modal-body">
+        <p>请先完全退出 CS2 和原始控制面板。卸载将删除本项目插件、启动器、皮肤配置及相关文件。</p>
+        <p>卸载完成后，必须通过 Steam 验证游戏文件完整性，才能恢复本项目修改过的 CS2 原生文件。</p>
+      </div>
+      <div id="uninstallSecond" class="modal-body" hidden>
+        <p>即将删除 <strong id="uninstallCount">0</strong> 个已安装项目文件，此操作无法撤销。</p>
+        <label>目标目录</label><code id="uninstallRoot"></code>
+        <p class="final-warning">这是第二次确认。继续后当前启动器也会自动删除。</p>
+      </div>
+      <div class="modal-actions">
+        <button id="uninstallCancel" class="modal-cancel">取消</button>
+        <button id="uninstallContinue" class="modal-continue">继续卸载</button>
+        <button id="uninstallConfirm" class="modal-confirm" hidden>确认卸载</button>
+      </div>
+    </section>
   </div>
   <div id="toast" class="toast" role="status"></div>
   <script src="/app.js"></script>
