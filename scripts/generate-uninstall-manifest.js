@@ -35,7 +35,10 @@ const manifest = {
   runtime_files: [
     "addons/counterstrikesharp/plugins/BotRandomizer/BotRandomizer.custom.json",
     "addons/counterstrikesharp/plugins/BotRandomizer/BotRandomizer.custom.backup.json",
-    "addons/counterstrikesharp/plugins/BotRandomizer/BotRandomizer.custom.json.tmp"
+    "addons/counterstrikesharp/plugins/BotRandomizer/BotRandomizer.custom.json.tmp",
+    "addons/counterstrikesharp/plugins/BotRandomizer/knife_skins.json",
+    "addons/counterstrikesharp/plugins/BotRandomizer/skins_en.json",
+    "Panel v1.4.2.exe"
   ],
   steam_managed_files: [...steamManaged].sort(),
   restore_files: [

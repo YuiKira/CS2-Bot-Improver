@@ -13,6 +13,7 @@ bot_aim mixed
 
 BOT NADE THROWING
 
+bot_nades less
 bot_nades normal
 bot_nades more
 bot_nades max
@@ -27,6 +28,7 @@ bot_add
 bot_add_t
 bot_add_ct
 bot_quota
+br_reroll
 mp_restartgame 1
 
 ADD TEAMS

@@ -268,6 +268,29 @@ internal static class WindowsPatchDefinitions
         ),
 
 
+        // CCSBot::Upkeep adds two bot-specific trig results to its persistent
+        // look offsets every tick. Replace only those two calls with 0.0f;
+        // global trigonometry helpers and the rest of native aiming stay intact.
+        // Source: CCSBot::UpdateLookAngles view-"drift" (cs_bot_update.cpp):
+        //   if (!IsUsingSniperRifle()) {
+        //     m_lookYaw   += driftAmplitude * BotCOS(33.0f * curtime);   // COS
+        //     m_lookPitch += driftAmplitude * BotSIN(13.0f * curtime);   // SIN
+        //   }
+        ["Upkeep_BotCOS_ZeroDrift"] = (
+            signature: "F3 0F 10 35 ? ? ? ? 48 8B 05 ? ? ? ? F3 0F 10 40 30 F3 0F 59 05 ? ? ? ? E8 ? ? ? ? F3 0F 59 C6 F3 0F 58 87 ? ? 00 00 F3 0F 11 87 ? ? 00 00",
+            patch: "0F 57 C0 90 90",
+            expectedOriginal: "E8 ? ? ? ?",
+            patchOffset: 28
+        ),
+
+        ["Upkeep_BotSIN_ZeroDrift"] = (
+            signature: "F3 0F 11 87 ? ? 00 00 48 8B 05 ? ? ? ? F3 0F 10 40 30 F3 0F 59 05 ? ? ? ? E8 ? ? ? ? F3 0F 59 C6 F3 0F 58 87 ? ? 00 00 F3 0F 11 87 ? ? 00 00",
+            patch: "0F 57 C0 90 90",
+            expectedOriginal: "E8 ? ? ? ?",
+            patchOffset: 28
+        ),
+
+
         ["InvestigateNoise_SkipSelfDefenseCheck"] = (
         signature: "83 BB ? ? 00 00 02 74 1E",
         patch: "90 90",
