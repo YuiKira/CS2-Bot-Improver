@@ -31,7 +31,7 @@ public sealed class BotRandomizerPlugin : BasePlugin
     private bool _giveNamedItemErrorLogged;
 
     public override string ModuleName => "BotRandomizer";
-    public override string ModuleVersion => "1.5.0";
+    public override string ModuleVersion => "1.5.1-beta.1";
     public override string ModuleAuthor => "ed0ard, Misaka17032 & unicbm";
     public override string ModuleDescription =>
         "Stable per-bot knives, gloves, weapon skins, stickers, charms, agents and music kits";
@@ -227,7 +227,7 @@ public sealed class BotRandomizerPlugin : BasePlugin
         var raw = weapon.EntityHandle.Raw;
         _hiddenKnifeEntities[raw] = weapon.Index;
         AddTimer(
-            0.55f,
+            0.85f,
             () => _hiddenKnifeEntities.Remove(raw),
             TimerFlags.STOP_ON_MAPCHANGE);
 
@@ -265,15 +265,23 @@ public sealed class BotRandomizerPlugin : BasePlugin
 
         var pendingIndex = _pendingGroundKnives.FindIndex(
             pending => pending.Selection.DefIndex == actualDefIndex);
-        if (pendingIndex < 0 && attempt >= 2 && _pendingGroundKnives.Count > 0)
+        // subclass_create entities may still expose the generic knife name for
+        // several frames. Do not consume an unrelated pending entry until the
+        // entity is confirmed to be an unowned ground weapon.
+        if (pendingIndex < 0
+            && attempt >= 6
+            && !weapon.OwnerEntity.IsValid
+            && _pendingGroundKnives.Count > 0)
+        {
             pendingIndex = 0;
+        }
 
         if (pendingIndex < 0)
         {
-            if (attempt < 4)
+            if (attempt < 8)
             {
                 AddTimer(
-                    0.06f + attempt * 0.04f,
+                    0.05f,
                     () => TryApplyPendingGroundKnife(weapon, attempt + 1),
                     TimerFlags.STOP_ON_MAPCHANGE);
             }
@@ -301,7 +309,10 @@ public sealed class BotRandomizerPlugin : BasePlugin
                 && _applicator.ApplyGroundKnife(weapon, pending.Selection))
             {
                 var raw = weapon.EntityHandle.Raw;
-                Server.NextFrame(() => _hiddenKnifeEntities.Remove(raw));
+                AddTimer(
+                    0.05f,
+                    () => _hiddenKnifeEntities.Remove(raw),
+                    TimerFlags.STOP_ON_MAPCHANGE);
             }
         }, TimerFlags.STOP_ON_MAPCHANGE);
     }

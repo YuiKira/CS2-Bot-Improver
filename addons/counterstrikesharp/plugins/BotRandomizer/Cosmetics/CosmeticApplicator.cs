@@ -128,6 +128,7 @@ internal sealed class CosmeticApplicator
             if (item is null)
                 return false;
 
+            weapon.AcceptInput("ChangeSubclass", value: selection.DefIndex.ToString());
             item.ItemDefinitionIndex = selection.DefIndex;
             item.EntityQuality = 3;
             if (_setAttributeByName is null)
