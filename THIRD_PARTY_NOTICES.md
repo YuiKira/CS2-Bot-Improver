@@ -1,8 +1,8 @@
 # Third-Party Notices
 
-`BotWeaponSkins.zh-CN.json`, `BotKnifeSkins.zh-CN.json`, and the generated skin mappings in
-`addons/counterstrikesharp/plugins/BotRandomizer/skins_en.json` include metadata
-derived from CSGO-API.
+`BotWeaponSkins.zh-CN.json`, `BotKnifeSkins.zh-CN.json`,
+`BotStickerCatalog.zh-CN.json`, and the generated skin mappings in
+`addons/counterstrikesharp/plugins/BotRandomizer/skins_en.json` include metadata derived from CSGO-API.
 
 Copyright (c) 2023 ByMykel
 
@@ -26,7 +26,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Skin images are not redistributed. The catalog contains image URLs served by
+Skin and sticker images are not redistributed. The catalogs contain image URLs served by
 Steam's content delivery network and the panel caches images locally on demand.
 
 The Windows desktop panel redistributes Microsoft WebView2 SDK components and

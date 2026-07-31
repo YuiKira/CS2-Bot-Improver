@@ -9,6 +9,7 @@ internal sealed class CosmeticCatalog
     private readonly Dictionary<string, WeaponCatalogEntry> _weaponsByDesignerName;
     private readonly Dictionary<ushort, IReadOnlyList<KnifePaintCatalogEntry>> _knives;
     private readonly Dictionary<string, int> _knifeFinishWeights;
+    private readonly HashSet<uint> _stickerDefIndexes;
     private readonly IReadOnlyList<IReadOnlyList<StickerCatalogEntry>> _stickerCategoryPools;
 
     private CosmeticCatalog(CatalogDocument document)
@@ -27,6 +28,7 @@ internal sealed class CosmeticCatalog
         Gloves = document.Gloves;
         StickerCategories = document.StickerCategories;
         StickerKits = document.StickerKits;
+        _stickerDefIndexes = document.StickerKits.Select(entry => entry.DefIndex).ToHashSet();
         var stickerGroups = document.StickerKits
             .GroupBy(entry => entry.Category)
             .ToDictionary(
@@ -75,6 +77,9 @@ internal sealed class CosmeticCatalog
         ushort defIndex,
         out IReadOnlyList<KnifePaintCatalogEntry> paints)
         => _knives.TryGetValue(defIndex, out paints!);
+
+    internal bool ContainsSticker(uint defIndex)
+        => _stickerDefIndexes.Contains(defIndex);
 
     internal int GetKnifeFinishWeight(string finish)
         => _knifeFinishWeights.GetValueOrDefault(finish, 1);

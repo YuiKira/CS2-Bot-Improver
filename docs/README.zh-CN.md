@@ -27,7 +27,7 @@ CS2-Bot-Improver 面向喜欢与人机博弈，或想和朋友一起挑战人机
 | **战术** | 提升人机的局势感知与决策能力，使行动更聪明、更有组织性 |
 | **经济** | 扩展可购买的武器与装备，并全面改进经济管理 |
 | **个性** | 使用职业选手或随机玩家名称；职业选手的特征基于 [HLTV](https://www.hltv.org/) 数据 |
-| **皮肤** | 为每个人机发放刀、手套、武器皮肤、印花、挂件、探员、音乐盒、头像和个人资料 |
+| **皮肤** | 为每个人机发放刀、手套、武器皮肤、自定义印花方案、挂件、探员、音乐盒、头像和个人资料 |
 | **游戏体验** | 移除人机名称前缀，提供更适合人机对局的规则，并增加实用、有趣的控制台指令 |
 
 ## 安装
@@ -47,6 +47,8 @@ Windows 用户请前往 **[最新版本](https://github.com/YuiKira/CS2-Bot-Impr
    <img width="540" height="181" alt="将 Windows 安装包中的文件复制到 game/csgo" src="https://github.com/user-attachments/assets/6a8645fc-78e7-4f3a-92d3-5d1b6d913918" />
 
 4. 将 `CS2 Bot Tools.exe` 和 `Panel v1.4.3.exe` 留在 `game/csgo`。可用前者配置装备，或打开后者选择**机器人模式**并点击**启动 CS2**。
+
+装备工具支持印花缩略图实时搜索、随机/关闭/自定义模式、每槽位刮花/角度/位置参数、四连同款以及按武器保存的命名方案。
 
    <img width="339" height="129" alt="在 Panel 中选择 Bot Mode 并启动 CS2" src="https://github.com/user-attachments/assets/dc806991-c940-43cf-a614-f49012fae4a7" />
 

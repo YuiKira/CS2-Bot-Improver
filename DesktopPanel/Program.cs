@@ -60,7 +60,8 @@ internal sealed class MainForm : Form
             var webRoot = Path.Combine(_appDirectory, "BotEquipmentPanel");
             if (!File.Exists(Path.Combine(webRoot, "index.html"))
                 || !File.Exists(Path.Combine(webRoot, "catalog.json"))
-                || !File.Exists(Path.Combine(webRoot, "knife-catalog.json")))
+                || !File.Exists(Path.Combine(webRoot, "knife-catalog.json"))
+                || !File.Exists(Path.Combine(webRoot, "sticker-catalog.json")))
                 throw new FileNotFoundException("装备面板文件不完整，请重新解压完整发布包。");
 
             var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -348,6 +349,8 @@ internal sealed class MainForm : Form
         },
         ["knife_skin_settings_by_def_index"] = new JObject(),
         ["weapon_paint_kits"] = new JObject(),
-        ["weapon_skin_settings"] = new JObject()
+        ["weapon_skin_settings"] = new JObject(),
+        ["stickers_enabled"] = true,
+        ["sticker_presets"] = new JObject()
     };
 }

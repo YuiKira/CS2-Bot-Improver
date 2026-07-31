@@ -3,6 +3,9 @@ const $ = id => document.getElementById(id);
 
 let gunCatalog = [];
 let knifeCatalog = [];
+let stickerCatalog = [];
+let stickerWeaponSlots = {};
+let stickersById = new Map();
 let config = null;
 let weapons = [];
 let knives = [];
@@ -10,11 +13,25 @@ let activeWeapon = 7;
 let activeKnife = 507;
 let focusedGun = null;
 let focusedKnife = null;
+let gunDetailTab = "skin";
+let activeStickerSlot = 0;
+let selectedStickerPresetId = "";
 let dirty = false;
 let toastTimer = null;
 let desktopRequestId = 0;
 let uninstallInfo = null;
 const desktopRequests = new Map();
+const STICKER_RESULT_LIMIT = 160;
+const STICKER_MODES = new Set(["random", "off", "custom"]);
+const FINISH_LABELS = {
+  paper: "普通",
+  glitter: "闪亮",
+  holo: "全息",
+  foil: "闪亮",
+  gold: "金色",
+  lenticular: "透镜",
+  embroidered: "刺绣"
+};
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
@@ -97,8 +114,30 @@ function normalizeConfig(value) {
   next.knife_skin_settings_by_def_index = next.knife_skin_settings_by_def_index || {};
   next.weapon_paint_kits = next.weapon_paint_kits || {};
   next.weapon_skin_settings = next.weapon_skin_settings || {};
+  next.stickers_enabled = next.stickers_enabled !== false;
+  next.sticker_presets = next.sticker_presets || {};
   delete next.auto_drop_bot_knife_copy;
   delete next.drop_delay_seconds;
+
+  for (const bucket of Object.values(next.weapon_skin_settings)) {
+    if (!bucket || typeof bucket !== "object") continue;
+    for (const settings of Object.values(bucket)) {
+      if (!settings || typeof settings !== "object") continue;
+      settings.sticker_mode = STICKER_MODES.has(settings.sticker_mode) ? settings.sticker_mode : "random";
+      settings.stickers = Array.isArray(settings.stickers)
+        ? settings.stickers.map(normalizeStickerSlot).filter(Boolean)
+        : [];
+    }
+  }
+  for (const [defIndex, presets] of Object.entries(next.sticker_presets)) {
+    next.sticker_presets[defIndex] = Array.isArray(presets) ? presets.map(preset => ({
+      id: String(preset?.id || createPresetId()),
+      name: String(preset?.name || "未命名方案").slice(0, 60),
+      stickers: Array.isArray(preset?.stickers)
+        ? preset.stickers.map(normalizeStickerSlot).filter(Boolean)
+        : []
+    })) : [];
+  }
 
   if (!Object.keys(next.knife_paint_kits_by_def_index).length) {
     for (const defIndex of next.knife_def_indexes) {
@@ -151,8 +190,31 @@ function renderInstallationStatus(status) {
 function defaultSettings(skin, statTrak = false) {
   const min = Number(skin.min_wear ?? 0), max = Number(skin.max_wear ?? 1);
   const settings = {wear: Math.min(max, Math.max(min, 0.01)), seed: 0};
-  if (statTrak) Object.assign(settings, {stattrak: false, stattrak_min: 0, stattrak_max: 99999});
+  if (statTrak) Object.assign(settings, {
+    stattrak: false,
+    stattrak_min: 0,
+    stattrak_max: 99999,
+    sticker_mode: "random",
+    stickers: []
+  });
   return settings;
+}
+
+function normalizeStickerSlot(value) {
+  if (!value || !Number.isInteger(Number(value.slot)) || !Number.isInteger(Number(value.def_index))) return null;
+  const sticker = {
+    slot: Math.max(0, Math.min(4, Number(value.slot))),
+    def_index: Number(value.def_index),
+    wear: Math.max(0, Math.min(1, Number(value.wear) || 0))
+  };
+  for (const key of ["rotation", "x", "y"]) {
+    if (value[key] !== null && value[key] !== undefined && Number.isFinite(Number(value[key]))) sticker[key] = Number(value[key]);
+  }
+  return sticker;
+}
+
+function createPresetId() {
+  return `preset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function selectedGunPaints(defIndex) {
@@ -167,6 +229,43 @@ function gunSettings(skin, create = false) {
   let settings = bucket?.[paintKey];
   if (!settings && create) settings = bucket[paintKey] = defaultSettings(skin, true);
   return settings || defaultSettings(skin, true);
+}
+
+function stickerSlotCount(skin = focusedGun) {
+  if (!skin) return 0;
+  const metadata = stickerWeaponSlots[String(skin.weapon_defindex)];
+  if (!metadata) return 5;
+  const legacy = Array.isArray(metadata.legacyPaints)
+    && metadata.legacyPaints.includes(Number(skin.paint));
+  return Math.max(0, Math.min(5, Number(legacy ? metadata.legacy : metadata.standard) || 0));
+}
+
+function stickerSlots(settings) {
+  if (!settings && focusedGun) settings = gunSettings(focusedGun, false);
+  return Array.isArray(settings?.stickers) ? settings.stickers : [];
+}
+
+function stickerAt(settings, slot) {
+  return stickerSlots(settings).find(sticker => Number(sticker.slot) === Number(slot)) || null;
+}
+
+function replaceStickerSlot(settings, value) {
+  const slots = stickerSlots(settings).filter(sticker => Number(sticker.slot) !== Number(value.slot));
+  slots.push(normalizeStickerSlot(value));
+  settings.stickers = slots.filter(Boolean).sort((left, right) => left.slot - right.slot);
+}
+
+function cloneStickerSlots(values) {
+  return (values || []).map(sticker => ({...sticker}));
+}
+
+function weaponStickerPresets(defIndex = activeWeapon, create = true) {
+  const key = String(defIndex);
+  if (!Array.isArray(config.sticker_presets[key])) {
+    if (!create) return [];
+    config.sticker_presets[key] = [];
+  }
+  return config.sticker_presets[key];
 }
 
 function selectedKnifePaints(defIndex) {
@@ -285,6 +384,66 @@ function renderGunDetail() {
   $("statTrak").checked = !!settings.stattrak; $("statMin").value = settings.stattrak_min; $("statMax").value = settings.stattrak_max;
   $("statRange").style.opacity = settings.stattrak ? "1" : ".4";
   $("statRange").style.pointerEvents = settings.stattrak ? "auto" : "none";
+  $("gunSkinTab").classList.toggle("is-active", gunDetailTab === "skin");
+  $("gunStickerTab").classList.toggle("is-active", gunDetailTab === "stickers");
+  $("gunSkinPanel").hidden = gunDetailTab !== "skin";
+  $("gunStickerPanel").hidden = gunDetailTab !== "stickers";
+  renderStickerEditor(settings, selected);
+}
+
+function renderStickerEditor(settings, selected) {
+  const mode = STICKER_MODES.has(settings.sticker_mode) ? settings.sticker_mode : "random";
+  const slotCount = stickerSlotCount();
+  if (activeStickerSlot >= slotCount) activeStickerSlot = Math.max(0, slotCount - 1);
+  $("stickersEnabled").checked = config.stickers_enabled !== false;
+  $("stickerGlobalState").textContent = config.stickers_enabled === false ? "已对全部武器关闭" : "对全部武器生效";
+  document.querySelectorAll("[data-sticker-mode]").forEach(button => {
+    button.classList.toggle("is-active", button.dataset.stickerMode === mode);
+    button.disabled = !selected;
+  });
+
+  const presets = weaponStickerPresets(focusedGun.weapon_defindex, false);
+  if (!presets.some(preset => preset.id === selectedStickerPresetId)) selectedStickerPresetId = "";
+  $("stickerPresetSelect").innerHTML = [
+    '<option value="">选择已保存方案</option>',
+    ...presets.map(preset => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`)
+  ].join("");
+  $("stickerPresetSelect").value = selectedStickerPresetId;
+  const selectedPreset = presets.find(preset => preset.id === selectedStickerPresetId);
+  if (document.activeElement !== $("stickerPresetName")) $("stickerPresetName").value = selectedPreset?.name || "";
+  $("applyStickerPreset").disabled = !selected || !selectedPreset;
+  $("updateStickerPreset").disabled = !selected || !selectedPreset;
+  $("deleteStickerPreset").disabled = !selectedPreset;
+  $("saveStickerPreset").disabled = !selected;
+
+  $("stickerSlots").innerHTML = Array.from({length: slotCount}, (_, slot) => {
+    const configured = stickerAt(settings, slot);
+    const metadata = configured ? stickersById.get(Number(configured.def_index)) : null;
+    const image = metadata?.image
+      ? `<img loading="lazy" src="${escapeHtml(metadata.image)}" alt="${escapeHtml(metadata.name)}">`
+      : "";
+    return `<button class="sticker-slot${slot === activeStickerSlot ? " is-active" : ""}" data-sticker-slot="${slot}">
+      <span class="sticker-slot-index">${slot + 1}</span>
+      <span class="sticker-slot-image">${image}</span>
+      <span class="sticker-slot-text"><strong>${escapeHtml(metadata?.name || "空槽位")}</strong><small>${configured ? `${FINISH_LABELS[metadata?.finish] || metadata?.finish || "印花"} · #${configured.def_index}` : "未设置印花"}</small></span>
+    </button>`;
+  }).join("");
+
+  const active = stickerAt(settings, activeStickerSlot);
+  const custom = mode === "custom";
+  $("chooseSticker").disabled = !selected || !custom;
+  $("clearStickerSlot").disabled = !selected || !custom || !active;
+  $("applyStickerFour").disabled = !selected || !custom || !active;
+  $("applyStickerAll").disabled = !selected || !custom || !active;
+  $("stickerParameters").classList.toggle("is-disabled", !selected || !custom || !active);
+  const wear = Math.round((Number(active?.wear) || 0) * 100);
+  const rotation = Math.round(Number(active?.rotation) || 0);
+  $("stickerWear").value = wear;
+  $("stickerWearValue").textContent = `${wear}%`;
+  $("stickerRotation").value = rotation;
+  $("stickerRotationValue").textContent = `${rotation}°`;
+  $("stickerX").value = Number(active?.x) || 0;
+  $("stickerY").value = Number(active?.y) || 0;
 }
 
 function renderKnives() {
@@ -328,28 +487,182 @@ function fillWearControls(skin, settings, prefix) {
 
 function renderAll() { renderGuns(); renderKnives(); }
 
+function setStickerMode(mode) {
+  if (!focusedGun || !STICKER_MODES.has(mode)) return;
+  const settings = gunSettings(focusedGun, true);
+  settings.sticker_mode = mode;
+  if (!Array.isArray(settings.stickers)) settings.stickers = [];
+  setDirty();
+  renderGunDetail();
+}
+
+function updateActiveSticker(patch) {
+  if (!focusedGun) return;
+  const settings = gunSettings(focusedGun, true);
+  const current = stickerAt(settings, activeStickerSlot);
+  if (!current) return;
+  replaceStickerSlot(settings, {...current, ...patch, slot: activeStickerSlot});
+  setDirty();
+  renderStickerEditor(settings, true);
+}
+
+function fillStickerSlots(limit) {
+  if (!focusedGun) return;
+  const settings = gunSettings(focusedGun, true);
+  const source = stickerAt(settings, activeStickerSlot);
+  if (!source) return;
+  const count = Math.min(limit, stickerSlotCount());
+  const copyPosition = $("copyStickerPosition").checked;
+  for (let slot = 0; slot < count; slot++) {
+    const previous = stickerAt(settings, slot);
+    replaceStickerSlot(settings, {
+      ...source,
+      slot,
+      x: copyPosition ? source.x : previous?.x,
+      y: copyPosition ? source.y : previous?.y
+    });
+  }
+  settings.sticker_mode = "custom";
+  setDirty();
+  renderGunDetail();
+}
+
+function saveStickerPreset() {
+  if (!focusedGun) return;
+  const name = $("stickerPresetName").value.trim();
+  if (!name) { showToast("请输入方案名称", true); $("stickerPresetName").focus(); return; }
+  const settings = gunSettings(focusedGun, true);
+  if (!stickerSlots(settings).length) { showToast("当前没有可保存的印花", true); return; }
+  const preset = {id: createPresetId(), name: name.slice(0, 60), stickers: cloneStickerSlots(settings.stickers)};
+  weaponStickerPresets(focusedGun.weapon_defindex).push(preset);
+  selectedStickerPresetId = preset.id;
+  setDirty(); renderGunDetail(); showToast(`已保存方案：${preset.name}`);
+}
+
+function updateStickerPreset() {
+  if (!focusedGun || !selectedStickerPresetId) return;
+  const preset = weaponStickerPresets(focusedGun.weapon_defindex).find(item => item.id === selectedStickerPresetId);
+  if (!preset) return;
+  const name = $("stickerPresetName").value.trim();
+  if (!name) { showToast("请输入方案名称", true); return; }
+  preset.name = name.slice(0, 60);
+  preset.stickers = cloneStickerSlots(gunSettings(focusedGun, true).stickers);
+  setDirty(); renderGunDetail(); showToast(`已更新方案：${preset.name}`);
+}
+
+function applyStickerPreset() {
+  if (!focusedGun || !selectedStickerPresetId) return;
+  const preset = weaponStickerPresets(focusedGun.weapon_defindex).find(item => item.id === selectedStickerPresetId);
+  if (!preset) return;
+  const settings = gunSettings(focusedGun, true);
+  settings.sticker_mode = "custom";
+  settings.stickers = cloneStickerSlots(preset.stickers)
+    .filter(sticker => sticker.slot < stickerSlotCount());
+  setDirty(); renderGunDetail(); showToast(`已应用方案：${preset.name}`);
+}
+
+function deleteStickerPreset() {
+  if (!focusedGun || !selectedStickerPresetId) return;
+  const presets = weaponStickerPresets(focusedGun.weapon_defindex);
+  const index = presets.findIndex(item => item.id === selectedStickerPresetId);
+  if (index < 0) return;
+  const [removed] = presets.splice(index, 1);
+  selectedStickerPresetId = "";
+  setDirty(); renderGunDetail(); showToast(`已删除方案：${removed.name}`);
+}
+
+function normalizeSearch(value) {
+  return String(value || "").toLocaleLowerCase("zh-CN").replace(/[\s|（）()·._-]+/g, "");
+}
+
+function renderStickerResults() {
+  const terms = String($("stickerSearch").value || "")
+    .split(/[\s|,，]+/)
+    .map(normalizeSearch)
+    .filter(Boolean);
+  const finish = $("stickerFinish").value;
+  const matched = [];
+  for (const sticker of stickerCatalog) {
+    if (finish && sticker.finish !== finish) continue;
+    if (terms.length && !terms.every(term => sticker.search.includes(term))) continue;
+    matched.push(sticker);
+  }
+  const visible = matched.slice(0, STICKER_RESULT_LIMIT);
+  $("stickerResultState").textContent = matched.length > visible.length
+    ? `找到 ${matched.length} 款，显示前 ${visible.length} 款`
+    : `找到 ${matched.length} 款`;
+  $("stickerResults").innerHTML = visible.length ? visible.map(sticker => {
+    const image = sticker.image
+      ? `<img loading="lazy" src="${escapeHtml(sticker.image)}" alt="${escapeHtml(sticker.name)}">`
+      : "";
+    return `<button class="sticker-result" data-sticker-result="${sticker.id}">
+      <span class="sticker-result-image">${image}</span>
+      <span class="sticker-result-text"><strong>${escapeHtml(sticker.name)}</strong><small>${escapeHtml(sticker.english)} · ${FINISH_LABELS[sticker.finish] || sticker.finish}</small></span>
+      <span class="sticker-result-id">#${sticker.id}</span>
+    </button>`;
+  }).join("") : '<div class="empty-grid">没有匹配的印花</div>';
+}
+
+function openStickerPicker() {
+  if (!focusedGun) return;
+  $("stickerPickerSlot").textContent = `${focusedGun.weapon} · 槽位 ${activeStickerSlot + 1}`;
+  $("stickerSearch").value = "";
+  $("stickerFinish").value = "";
+  $("stickerPickerModal").hidden = false;
+  renderStickerResults();
+  $("stickerSearch").focus();
+}
+
+function closeStickerPicker() {
+  $("stickerPickerModal").hidden = true;
+}
+
+function chooseSticker(defIndex) {
+  if (!focusedGun || !stickersById.has(defIndex)) return;
+  const settings = gunSettings(focusedGun, true);
+  const previous = stickerAt(settings, activeStickerSlot);
+  replaceStickerSlot(settings, {
+    def_index: defIndex,
+    slot: activeStickerSlot,
+    wear: previous?.wear || 0,
+    rotation: previous?.rotation,
+    x: previous?.x,
+    y: previous?.y
+  });
+  settings.sticker_mode = "custom";
+  setDirty(); closeStickerPicker(); renderGunDetail();
+}
+
 function applyLoaded(payload) {
   config = normalizeConfig(payload.config);
   hydrateSettings();
   $("rootPath").value = payload.root || "";
   focusedGun = null; focusedKnife = null;
+  gunDetailTab = "skin"; activeStickerSlot = 0; selectedStickerPresetId = "";
   renderInstallationStatus(payload.status);
   setDirty(false); renderAll();
 }
 
 document.addEventListener("click", event => {
+  const stickerResult = event.target.closest("[data-sticker-result]");
+  if (stickerResult) { chooseSticker(Number(stickerResult.dataset.stickerResult)); return; }
+  const stickerSlot = event.target.closest("[data-sticker-slot]");
+  if (stickerSlot) { activeStickerSlot = Number(stickerSlot.dataset.stickerSlot); renderGunDetail(); return; }
+  const stickerMode = event.target.closest("[data-sticker-mode]");
+  if (stickerMode) { setStickerMode(stickerMode.dataset.stickerMode); return; }
   const nav = event.target.closest("[data-view]");
   if (nav) {
     document.querySelectorAll("[data-view]").forEach(item => item.classList.toggle("is-active", item === nav));
     $("gunsView").hidden = nav.dataset.view !== "guns"; $("knivesView").hidden = nav.dataset.view !== "knives"; return;
   }
   const weaponButton = event.target.closest("[data-weapon]");
-  if (weaponButton) { activeWeapon = Number(weaponButton.dataset.weapon); focusedGun = null; $("skinSearch").value = ""; renderGuns(); return; }
+  if (weaponButton) { activeWeapon = Number(weaponButton.dataset.weapon); focusedGun = null; activeStickerSlot = 0; selectedStickerPresetId = ""; $("skinSearch").value = ""; renderGuns(); return; }
   const knifeButton = event.target.closest("[data-knife-type]");
   if (knifeButton && !event.target.closest("[data-knife-enable]")) { activeKnife = Number(knifeButton.dataset.knifeType); focusedKnife = null; $("knifeSkinSearch").value = ""; renderKnives(); return; }
   const gunCard = event.target.closest("[data-gun-paint]");
   if (gunCard) {
     focusedGun = weapons.find(item => item.id === activeWeapon)?.skins.find(skin => Number(skin.paint) === Number(gunCard.dataset.gunPaint));
+    activeStickerSlot = 0;
     if (focusedGun && event.target.closest("[data-toggle]")) toggleGunSkin(focusedGun); else renderGuns(); return;
   }
   const knifeCard = event.target.closest("[data-knife-paint]");
@@ -373,6 +686,51 @@ $("weaponSearch").addEventListener("input", renderGuns); $("skinSearch").addEven
 $("knifeTypeSearch").addEventListener("input", renderKnives); $("knifeSkinSearch").addEventListener("input", renderKnives);
 $("toggleFocused").addEventListener("click", () => focusedGun && toggleGunSkin(focusedGun));
 $("knifeToggleFocused").addEventListener("click", () => focusedKnife && toggleKnifeSkin(focusedKnife));
+$("gunSkinTab").addEventListener("click", () => { gunDetailTab = "skin"; renderGunDetail(); });
+$("gunStickerTab").addEventListener("click", () => { gunDetailTab = "stickers"; renderGunDetail(); });
+
+$("stickersEnabled").addEventListener("change", event => { config.stickers_enabled = event.target.checked; setDirty(); renderGunDetail(); });
+$("stickerPresetSelect").addEventListener("change", event => {
+  selectedStickerPresetId = event.target.value;
+  const preset = weaponStickerPresets().find(item => item.id === selectedStickerPresetId);
+  $("stickerPresetName").value = preset?.name || "";
+  renderGunDetail();
+});
+$("saveStickerPreset").addEventListener("click", saveStickerPreset);
+$("updateStickerPreset").addEventListener("click", updateStickerPreset);
+$("applyStickerPreset").addEventListener("click", applyStickerPreset);
+$("deleteStickerPreset").addEventListener("click", deleteStickerPreset);
+$("chooseSticker").addEventListener("click", openStickerPicker);
+$("applyStickerFour").addEventListener("click", () => fillStickerSlots(4));
+$("applyStickerAll").addEventListener("click", () => fillStickerSlots(stickerSlotCount()));
+$("clearStickerSlot").addEventListener("click", () => {
+  if (!focusedGun) return;
+  const settings = gunSettings(focusedGun, true);
+  settings.stickers = stickerSlots(settings).filter(sticker => sticker.slot !== activeStickerSlot);
+  setDirty(); renderGunDetail();
+});
+$("stickerWear").addEventListener("input", event => {
+  const value = clampInt(event.target.value, 0, 100);
+  $("stickerWearValue").textContent = `${value}%`;
+  updateActiveSticker({wear: value / 100});
+});
+$("stickerRotation").addEventListener("input", event => {
+  const value = clampInt(event.target.value, -180, 180);
+  $("stickerRotationValue").textContent = `${value}°`;
+  updateActiveSticker({rotation: value});
+});
+for (const [id, key] of [["stickerX", "x"], ["stickerY", "y"]]) {
+  $(id).addEventListener("change", event => {
+    const value = Math.max(-1, Math.min(1, Number(event.target.value) || 0));
+    event.target.value = value;
+    updateActiveSticker({[key]: value});
+  });
+}
+$("resetStickerTransform").addEventListener("click", () => updateActiveSticker({wear: 0, rotation: 0, x: 0, y: 0}));
+$("stickerSearch").addEventListener("input", renderStickerResults);
+$("stickerFinish").addEventListener("change", renderStickerResults);
+$("closeStickerPicker").addEventListener("click", closeStickerPicker);
+$("stickerPickerModal").addEventListener("click", event => { if (event.target === $("stickerPickerModal")) closeStickerPicker(); });
 
 $("wearSlider").addEventListener("input", event => { $("wearNumber").value = event.target.value; updateGunSettings({wear: Number(event.target.value)}); });
 $("wearNumber").addEventListener("change", event => clampWear(event, $("wearSlider"), updateGunSettings));
@@ -464,7 +822,14 @@ $("uninstallConfirm").addEventListener("click", async () => {
   }
 });
 $("uninstallModal").addEventListener("click", event => { if (event.target === $("uninstallModal")) closeUninstallModal(); });
-document.addEventListener("keydown", event => { if (event.key === "Escape" && !$("uninstallModal").hidden) closeUninstallModal(); });
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  if (!$("stickerPickerModal").hidden) closeStickerPicker();
+  else if (!$("uninstallModal").hidden) closeUninstallModal();
+});
+document.addEventListener("error", event => {
+  if (event.target instanceof HTMLImageElement) event.target.classList.add("sticker-image-failed");
+}, true);
 $("shutdown").addEventListener("click", async () => { try { await api("/api/shutdown", {}); } catch {} });
 window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
 
@@ -486,10 +851,21 @@ function closeUninstallModal() {
 
 (async function init() {
   try {
-    const [bootstrap, guns, knifeSkins] = await Promise.all([
-      api("/api/bootstrap"), loadCatalog("/catalog.json"), loadCatalog("/knife-catalog.json")
+    const [bootstrap, guns, knifeSkins, stickerDocument] = await Promise.all([
+      api("/api/bootstrap"),
+      loadCatalog("/catalog.json"),
+      loadCatalog("/knife-catalog.json"),
+      loadCatalog("/sticker-catalog.json")
     ]);
-    gunCatalog = guns; knifeCatalog = knifeSkins; groupCatalogs();
+    gunCatalog = guns;
+    knifeCatalog = knifeSkins;
+    stickerCatalog = Array.isArray(stickerDocument?.stickers) ? stickerDocument.stickers : [];
+    stickerWeaponSlots = stickerDocument?.weaponSlots || {};
+    for (const sticker of stickerCatalog) {
+      sticker.search = normalizeSearch(`${sticker.name} ${sticker.english} ${sticker.id} ${sticker.finish} ${FINISH_LABELS[sticker.finish] || ""}`);
+    }
+    stickersById = new Map(stickerCatalog.map(sticker => [Number(sticker.id), sticker]));
+    groupCatalogs();
     $("openOriginal").disabled = !bootstrap.original_panel_available; applyLoaded(bootstrap);
   } catch (error) { $("saveState").textContent = "载入失败"; showToast(error.message || "装备面板载入失败", true); }
 })();

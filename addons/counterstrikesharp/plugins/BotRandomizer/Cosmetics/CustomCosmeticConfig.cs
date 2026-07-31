@@ -6,6 +6,10 @@ namespace BotRandomizer;
 
 internal sealed class BotRandomizerCustomConfig
 {
+    internal const string RandomStickerMode = "random";
+    internal const string DisabledStickerMode = "off";
+    internal const string CustomStickerMode = "custom";
+
     [JsonPropertyName("knife_def_indexes")]
     public List<ushort> KnifeDefIndexes { get; set; } = [507, 515];
 
@@ -26,6 +30,12 @@ internal sealed class BotRandomizerCustomConfig
 
     [JsonPropertyName("weapon_skin_settings")]
     public Dictionary<ushort, Dictionary<int, WeaponSkinSettings>> WeaponSkinSettings { get; set; } = [];
+
+    [JsonPropertyName("stickers_enabled")]
+    public bool StickersEnabled { get; set; } = true;
+
+    [JsonPropertyName("sticker_presets")]
+    public Dictionary<ushort, List<StickerPresetSettings>> StickerPresets { get; set; } = [];
 
     internal static BotRandomizerCustomConfig Load(
         string path,
@@ -133,9 +143,28 @@ internal sealed class BotRandomizerCustomConfig
                 pair =>
                 {
                     catalog.TryGetWeapon(pair.Key, out var weapon);
-                    return NormalizeSettings(pair.Value, weapon.Paints.Select(paint => paint.PaintKit).ToHashSet());
+                    return NormalizeWeaponSettings(pair.Value, weapon, catalog);
                 });
+        config.StickerPresets = NormalizeStickerPresets(config.StickerPresets, catalog);
         return config;
+    }
+
+    private static Dictionary<int, WeaponSkinSettings> NormalizeWeaponSettings(
+        Dictionary<int, WeaponSkinSettings>? settings,
+        WeaponCatalogEntry weapon,
+        CosmeticCatalog catalog)
+    {
+        var paints = weapon.Paints.ToDictionary(paint => paint.PaintKit);
+        return (settings ?? [])
+            .Where(pair => paints.ContainsKey(pair.Key) && pair.Value is not null)
+            .ToDictionary(
+                pair => pair.Key,
+                pair => NormalizeWeaponSettings(
+                    pair.Value,
+                    paints[pair.Key].Legacy
+                        ? weapon.LegacyStickerSchemaCount
+                        : weapon.StickerSchemaCount,
+                    catalog));
     }
 
     private static Dictionary<int, WeaponSkinSettings> NormalizeSettings(
@@ -154,9 +183,93 @@ internal sealed class BotRandomizerCustomConfig
             Seed = Math.Clamp(settings.Seed, 0, 1000),
             StatTrak = settings.StatTrak,
             StatTrakMin = minimum,
-            StatTrakMax = Math.Clamp(settings.StatTrakMax, minimum, 999999)
+            StatTrakMax = Math.Clamp(settings.StatTrakMax, minimum, 999999),
+            StickerMode = null,
+            Stickers = null
         };
     }
+
+    private static WeaponSkinSettings NormalizeWeaponSettings(
+        WeaponSkinSettings settings,
+        int schemaCount,
+        CosmeticCatalog catalog)
+    {
+        var normalized = NormalizeSettings(settings);
+        var mode = settings.StickerMode?.Trim().ToLowerInvariant();
+        normalized.StickerMode = mode is DisabledStickerMode or CustomStickerMode
+            ? mode
+            : RandomStickerMode;
+        normalized.Stickers = NormalizeStickerSlots(settings.Stickers, schemaCount, catalog);
+        return normalized;
+    }
+
+    private static Dictionary<ushort, List<StickerPresetSettings>> NormalizeStickerPresets(
+        Dictionary<ushort, List<StickerPresetSettings>>? presets,
+        CosmeticCatalog catalog)
+        => (presets ?? [])
+            .Where(pair => catalog.TryGetWeapon(pair.Key, out _))
+            .ToDictionary(
+                pair => pair.Key,
+                pair =>
+                {
+                    catalog.TryGetWeapon(pair.Key, out var weapon);
+                    var slots = Math.Min(5, Math.Max(
+                        weapon.StickerSchemaCount,
+                        weapon.LegacyStickerSchemaCount));
+                    var usedIds = new HashSet<string>(StringComparer.Ordinal);
+                    return (pair.Value ?? [])
+                        .Where(preset => preset is not null)
+                        .Take(100)
+                        .Select(preset =>
+                        {
+                            var id = string.IsNullOrWhiteSpace(preset.Id)
+                                ? Guid.NewGuid().ToString("N")
+                                : preset.Id.Trim()[..Math.Min(64, preset.Id.Trim().Length)];
+                            while (!usedIds.Add(id))
+                                id = Guid.NewGuid().ToString("N");
+                            var name = string.IsNullOrWhiteSpace(preset.Name)
+                                ? "未命名方案"
+                                : preset.Name.Trim()[..Math.Min(60, preset.Name.Trim().Length)];
+                            return new StickerPresetSettings
+                            {
+                                Id = id,
+                                Name = name,
+                                Stickers = NormalizeStickerSlots(preset.Stickers, slots, catalog)
+                            };
+                        })
+                        .ToList();
+                });
+
+    private static List<StickerSlotSettings> NormalizeStickerSlots(
+        List<StickerSlotSettings>? stickers,
+        int schemaCount,
+        CosmeticCatalog catalog)
+    {
+        var maximumSlots = Math.Min(5, Math.Max(0, schemaCount));
+        return (stickers ?? [])
+            .Where(sticker => sticker is not null
+                && sticker.Slot >= 0
+                && sticker.Slot < maximumSlots
+                && catalog.ContainsSticker(sticker.DefIndex))
+            .GroupBy(sticker => sticker.Slot)
+            .Select(group => group.First())
+            .OrderBy(sticker => sticker.Slot)
+            .Select(sticker => new StickerSlotSettings
+            {
+                DefIndex = sticker.DefIndex,
+                Slot = sticker.Slot,
+                Wear = Math.Clamp(float.IsFinite(sticker.Wear) ? sticker.Wear : 0.0f, 0.0f, 1.0f),
+                Rotation = NormalizeOptional(sticker.Rotation, -180.0f, 180.0f),
+                X = NormalizeOptional(sticker.X, -1.0f, 1.0f),
+                Y = NormalizeOptional(sticker.Y, -1.0f, 1.0f)
+            })
+            .ToList();
+    }
+
+    private static float? NormalizeOptional(float? value, float minimum, float maximum)
+        => value is float number && float.IsFinite(number)
+            ? Math.Clamp(number, minimum, maximum)
+            : null;
 }
 
 internal sealed class WeaponSkinSettings
@@ -175,4 +288,48 @@ internal sealed class WeaponSkinSettings
 
     [JsonPropertyName("stattrak_max")]
     public int StatTrakMax { get; set; } = 99999;
+
+    [JsonPropertyName("sticker_mode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StickerMode { get; set; }
+
+    [JsonPropertyName("stickers")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<StickerSlotSettings>? Stickers { get; set; }
+}
+
+internal sealed class StickerSlotSettings
+{
+    [JsonPropertyName("def_index")]
+    public uint DefIndex { get; set; }
+
+    [JsonPropertyName("slot")]
+    public int Slot { get; set; }
+
+    [JsonPropertyName("wear")]
+    public float Wear { get; set; }
+
+    [JsonPropertyName("rotation")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? Rotation { get; set; }
+
+    [JsonPropertyName("x")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? X { get; set; }
+
+    [JsonPropertyName("y")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public float? Y { get; set; }
+}
+
+internal sealed class StickerPresetSettings
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("stickers")]
+    public List<StickerSlotSettings> Stickers { get; set; } = [];
 }

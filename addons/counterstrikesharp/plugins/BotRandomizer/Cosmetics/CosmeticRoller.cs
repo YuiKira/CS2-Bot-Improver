@@ -57,11 +57,12 @@ internal sealed class CosmeticRoller
             return null;
 
         var paint = PickConfiguredWeaponPaint(weapon);
-        var stickers = RollStickers(paint.Legacy
-            ? weapon.LegacyStickerSchemaCount
-            : weapon.StickerSchemaCount);
-        var keychain = RollKeychain(defIndex);
         var configured = _customConfig.GetWeaponSettings(defIndex, paint.PaintKit);
+        var stickerSchemaCount = paint.Legacy
+            ? weapon.LegacyStickerSchemaCount
+            : weapon.StickerSchemaCount;
+        var stickers = ResolveStickers(configured, stickerSchemaCount);
+        var keychain = RollKeychain(defIndex);
         var wear = configured is null
             ? _wearAllocator.Reserve(defIndex, paint, stickers)
             : Math.Clamp(configured.Wear, paint.WearMin, paint.WearMax);
@@ -79,6 +80,34 @@ internal sealed class CosmeticRoller
             keychain);
         loadout.Weapons.Add(defIndex, selection);
         return selection;
+    }
+
+    private IReadOnlyList<StickerSelection> ResolveStickers(
+        WeaponSkinSettings? configured,
+        int schemaCount)
+    {
+        if (!_customConfig.StickersEnabled
+            || configured?.StickerMode == BotRandomizerCustomConfig.DisabledStickerMode)
+        {
+            return Array.Empty<StickerSelection>();
+        }
+
+        if (configured?.StickerMode == BotRandomizerCustomConfig.CustomStickerMode)
+        {
+            return (configured.Stickers ?? [])
+                .Where(sticker => sticker.Slot >= 0 && sticker.Slot < schemaCount)
+                .Select(sticker => new StickerSelection(
+                    sticker.DefIndex,
+                    sticker.Slot,
+                    (uint)sticker.Slot,
+                    sticker.Wear,
+                    sticker.Rotation,
+                    sticker.X,
+                    sticker.Y))
+                .ToArray();
+        }
+
+        return RollStickers(schemaCount);
     }
 
     internal void ResetMap() => _wearAllocator.Reset();

@@ -27,7 +27,7 @@ CS2-Bot-Improver enhances Counter-Strike 2 bots for offline matches and private 
 | **Strategy** | Smarter, more organized bots with improved awareness and decision-making |
 | **Economy** | Expanded weapon purchases and overhauled economy management |
 | **Personalities** | Pro and random player names, with pro characteristics based on [HLTV](https://www.hltv.org/) stats |
-| **Customization** | Per-bot knives, gloves, weapon skins, stickers, charms, agents, music kits, avatars, and profiles |
+| **Customization** | Per-bot knives, gloves, weapon skins, custom sticker layouts and presets, charms, agents, music kits, avatars, and profiles |
 | **Game experience** | Bot names without prefixes, bot-friendly rules, and extra console commands for fun |
 
 ## Installation
@@ -46,6 +46,8 @@ Download the Windows package from the **[latest release](https://github.com/YuiK
    <img width="540" height="181" alt="Copying the Windows package files into game/csgo" src="https://github.com/user-attachments/assets/6a8645fc-78e7-4f3a-92d3-5d1b6d913918" />
 
 4. Open `CS2 Bot Tools.exe` to configure equipment or launch `Panel v1.4.3.exe`, select **Bot Mode**, then click **Launch CS2**.
+
+The equipment tool supports searchable sticker thumbnails, random/off/custom sticker modes, per-slot wear, rotation and position, quick four-of-a-kind layouts, and reusable weapon-specific presets.
 
    <img width="339" height="129" alt="Selecting Bot Mode and launching CS2 from the Panel" src="https://github.com/user-attachments/assets/dc806991-c940-43cf-a614-f49012fae4a7" />
 
