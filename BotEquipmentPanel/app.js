@@ -114,7 +114,7 @@ function normalizeConfig(value) {
   next.knife_skin_settings_by_def_index = next.knife_skin_settings_by_def_index || {};
   next.weapon_paint_kits = next.weapon_paint_kits || {};
   next.weapon_skin_settings = next.weapon_skin_settings || {};
-  next.stickers_enabled = next.stickers_enabled !== false;
+  next.stickers_enabled = true;
   next.sticker_presets = next.sticker_presets || {};
   delete next.auto_drop_bot_knife_copy;
   delete next.drop_delay_seconds;
