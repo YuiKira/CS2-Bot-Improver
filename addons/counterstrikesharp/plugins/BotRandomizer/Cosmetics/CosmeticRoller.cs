@@ -94,20 +94,41 @@ internal sealed class CosmeticRoller
 
         if (configured?.StickerMode == BotRandomizerCustomConfig.CustomStickerMode)
         {
-            return (configured.Stickers ?? [])
-                .Where(sticker => sticker.Slot >= 0 && sticker.Slot < schemaCount)
-                .Select(sticker => new StickerSelection(
+            var selections = new List<StickerSelection>();
+            var usedSchemas = new HashSet<uint>();
+            foreach (var sticker in (configured.Stickers ?? [])
+                .Where(sticker => sticker.Slot >= 0 && sticker.Slot < MaximumStickers)
+                .OrderBy(sticker => sticker.Slot))
+            {
+                var schema = ReserveStickerSchema(sticker.Slot, schemaCount, usedSchemas);
+                selections.Add(new StickerSelection(
                     sticker.DefIndex,
                     sticker.Slot,
-                    (uint)sticker.Slot,
+                    schema,
                     sticker.Wear,
                     sticker.Rotation,
                     sticker.X,
-                    sticker.Y))
-                .ToArray();
+                    sticker.Y));
+            }
+            return selections;
         }
 
         return RollStickers(schemaCount);
+    }
+
+    private static uint ReserveStickerSchema(
+        int preferred,
+        int schemaCount,
+        HashSet<uint> used)
+    {
+        if (preferred >= 0 && preferred < schemaCount && used.Add((uint)preferred))
+            return (uint)preferred;
+        for (var index = 0; index < schemaCount; index++)
+        {
+            if (used.Add((uint)index))
+                return (uint)index;
+        }
+        return 0;
     }
 
     internal void ResetMap() => _wearAllocator.Reset();

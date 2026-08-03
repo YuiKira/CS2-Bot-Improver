@@ -6,6 +6,7 @@ namespace BotRandomizer;
 
 internal sealed class BotRandomizerCustomConfig
 {
+    private const int MaximumStickers = 5;
     internal const string RandomStickerMode = "random";
     internal const string DisabledStickerMode = "off";
     internal const string CustomStickerMode = "custom";
@@ -161,9 +162,6 @@ internal sealed class BotRandomizerCustomConfig
                 pair => pair.Key,
                 pair => NormalizeWeaponSettings(
                     pair.Value,
-                    paints[pair.Key].Legacy
-                        ? weapon.LegacyStickerSchemaCount
-                        : weapon.StickerSchemaCount,
                     catalog));
     }
 
@@ -191,7 +189,6 @@ internal sealed class BotRandomizerCustomConfig
 
     private static WeaponSkinSettings NormalizeWeaponSettings(
         WeaponSkinSettings settings,
-        int schemaCount,
         CosmeticCatalog catalog)
     {
         var normalized = NormalizeSettings(settings);
@@ -199,7 +196,7 @@ internal sealed class BotRandomizerCustomConfig
         normalized.StickerMode = mode is DisabledStickerMode or CustomStickerMode
             ? mode
             : RandomStickerMode;
-        normalized.Stickers = NormalizeStickerSlots(settings.Stickers, schemaCount, catalog);
+        normalized.Stickers = NormalizeStickerSlots(settings.Stickers, MaximumStickers, catalog);
         return normalized;
     }
 
@@ -213,9 +210,7 @@ internal sealed class BotRandomizerCustomConfig
                 pair =>
                 {
                     catalog.TryGetWeapon(pair.Key, out var weapon);
-                    var slots = Math.Min(5, Math.Max(
-                        weapon.StickerSchemaCount,
-                        weapon.LegacyStickerSchemaCount));
+                    const int slots = MaximumStickers;
                     var usedIds = new HashSet<string>(StringComparer.Ordinal);
                     return (pair.Value ?? [])
                         .Where(preset => preset is not null)

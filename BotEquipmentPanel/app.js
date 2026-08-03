@@ -32,6 +32,7 @@ const FINISH_LABELS = {
   lenticular: "透镜",
   embroidered: "刺绣"
 };
+const AWP_STICKER_LOCATIONS = ["镜筒", "镜筒下方", "枪身中部", "枪托", "自由位置"];
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
@@ -240,6 +241,11 @@ function stickerSlotCount(skin = focusedGun) {
   return Math.max(0, Math.min(5, Number(legacy ? metadata.legacy : metadata.standard) || 0));
 }
 
+function stickerLocation(skin, slot) {
+  if (Number(skin?.weapon_defindex) === 9) return AWP_STICKER_LOCATIONS[slot] || `位置 ${slot + 1}`;
+  return `位置 ${slot + 1}`;
+}
+
 function stickerSlots(settings) {
   if (!settings && focusedGun) settings = gunSettings(focusedGun, false);
   return Array.isArray(settings?.stickers) ? settings.stickers : [];
@@ -419,13 +425,14 @@ function renderStickerEditor(settings, selected) {
   $("stickerSlots").innerHTML = Array.from({length: slotCount}, (_, slot) => {
     const configured = stickerAt(settings, slot);
     const metadata = configured ? stickersById.get(Number(configured.def_index)) : null;
+    const location = stickerLocation(focusedGun, slot);
     const image = metadata?.image
       ? `<img loading="lazy" src="${escapeHtml(metadata.image)}" alt="${escapeHtml(metadata.name)}">`
       : "";
     return `<button class="sticker-slot${slot === activeStickerSlot ? " is-active" : ""}" data-sticker-slot="${slot}">
       <span class="sticker-slot-index">${slot + 1}</span>
       <span class="sticker-slot-image">${image}</span>
-      <span class="sticker-slot-text"><strong>${escapeHtml(metadata?.name || "空槽位")}</strong><small>${configured ? `${FINISH_LABELS[metadata?.finish] || metadata?.finish || "印花"} · #${configured.def_index}` : "未设置印花"}</small></span>
+      <span class="sticker-slot-text"><strong>${escapeHtml(metadata?.name || "空槽位")}</strong><small>${escapeHtml(location)} · ${configured ? `${FINISH_LABELS[metadata?.finish] || metadata?.finish || "印花"} · #${configured.def_index}` : "未设置印花"}</small></span>
     </button>`;
   }).join("");
 
@@ -605,7 +612,7 @@ function renderStickerResults() {
 
 function openStickerPicker() {
   if (!focusedGun) return;
-  $("stickerPickerSlot").textContent = `${focusedGun.weapon} · 槽位 ${activeStickerSlot + 1}`;
+  $("stickerPickerSlot").textContent = `${focusedGun.weapon} · 槽位 ${activeStickerSlot + 1} · ${stickerLocation(focusedGun, activeStickerSlot)}`;
   $("stickerSearch").value = "";
   $("stickerFinish").value = "";
   $("stickerPickerModal").hidden = false;

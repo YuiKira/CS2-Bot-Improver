@@ -71,8 +71,10 @@ const stickers = runtimeCatalog.stickerKits
 const weaponSlots = Object.fromEntries(runtimeCatalog.weapons.map(weapon => [
   String(weapon.defIndex),
   {
-    standard: Math.min(5, weapon.stickerSchemaCount),
-    legacy: Math.min(5, weapon.legacyStickerSchemaCount),
+    standard: 5,
+    legacy: 5,
+    standardAnchors: weapon.stickerSchemaCount,
+    legacyAnchors: weapon.legacyStickerSchemaCount,
     legacyPaints: weapon.paints.filter(paint => paint.legacy).map(paint => paint.paintKit)
   }
 ]));
