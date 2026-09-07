@@ -173,7 +173,7 @@ internal static class Uninstaller
     {
         var blockers = new List<string>();
         if (Process.GetProcessesByName("cs2").Length > 0) blockers.Add("Counter-Strike 2");
-        if (Process.GetProcessesByName("Panel v1.4.2").Length > 0) blockers.Add("原始控制面板");
+        if (Process.GetProcessesByName("Panel v1.4.4").Length > 0) blockers.Add("原始控制面板");
         return blockers;
     }
 

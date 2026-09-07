@@ -41,11 +41,11 @@ Download the Windows package from the **[latest release](https://github.com/YuiK
 
    <img width="405" height="256" alt="The game/csgo directory inside a CS2 installation" src="https://github.com/user-attachments/assets/ae2be90e-6742-4f1f-8e0c-096b728d5dbd" />
 
-3. Copy every extracted file into `game/csgo`. Keep `CS2 Bot Tools.exe` and `Panel v1.4.3.exe` in this directory.
+3. Copy every extracted file into `game/csgo`. Keep `CS2 Bot Tools.exe` and `Panel v1.4.4.exe` in this directory.
 
    <img width="540" height="181" alt="Copying the Windows package files into game/csgo" src="https://github.com/user-attachments/assets/6a8645fc-78e7-4f3a-92d3-5d1b6d913918" />
 
-4. Open `CS2 Bot Tools.exe` to configure equipment or launch `Panel v1.4.3.exe`, select **Bot Mode**, then click **Launch CS2**.
+4. Open `CS2 Bot Tools.exe` to configure equipment or launch `Panel v1.4.4.exe`, select **Bot Mode**, then click **Launch CS2**.
 
 The equipment tool supports searchable sticker thumbnails, random/off/custom sticker modes, per-slot wear, rotation and position, quick four-of-a-kind layouts, and reusable weapon-specific presets.
 
@@ -236,7 +236,7 @@ Release packages contain only `BotRandomizer.custom.example.json`, so extracting
 <details>
 <summary><strong>How to completely uninstall on Windows?</strong></summary>
 
-1. Exit CS2 and `Panel v1.4.3.exe`.
+1. Exit CS2 and `Panel v1.4.4.exe`.
 2. Run `CS2 Bot Tools.exe` from the installed `game/csgo` directory.
 3. Click `卸载 CS2-Bot-Improver` and confirm both prompts.
 4. After completion, open CS2's Steam properties, select **Installed Files**, and verify the integrity of the game files.
