@@ -24,6 +24,9 @@ namespace NadeSystem;
 
 public partial class NadeSystemPlugin : BasePlugin
 {
+    private static readonly PluginCapability<RayTraceAPI.CRayTraceInterface> RayTraceCapability =
+        new("raytrace:craytraceinterface");
+
     public override string ModuleName    => "NadeSystem";
     public override string ModuleVersion => "1.2.1";
     public override string ModuleAuthor  => "ed0ard & XBribo";

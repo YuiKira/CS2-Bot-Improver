@@ -15,6 +15,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using RayTraceAPI;
 
 namespace NadeSystem;
 
@@ -283,10 +284,21 @@ public partial class NadeSystemPlugin : BasePlugin
     // * Checks world-only line of sight from a flash to an eye position
     private bool FlashHasLoS(Vec3 landing, float eyeX, float eyeY, float eyeZ)
     {
-        // The bundled RayTrace API no longer exposes the old static Trace/Masks
-        // entry points. The geometric FOV check above remains valid; allow the
-        // target when a world-only trace cannot be performed.
-        return true;
+        try
+        {
+            var rayTrace = RayTraceCapability.Get();
+            if (rayTrace == null) return true;
+
+            var start = new Vector(landing.X, landing.Y, landing.Z);
+            var end = new Vector(eyeX, eyeY, eyeZ);
+            var options = new TraceOptions(InteractionLayers.MASK_WORLD_ONLY);
+            rayTrace.TraceEndShape(start, end, null, options, out TraceResult result);
+            return result.Fraction >= 0.99f;
+        }
+        catch
+        {
+            return true;
+        }
     }
     // Post-throw probability for flash for this bot in 12 seconds
     // * Maps the blindable enemy ratio to a replay probability
