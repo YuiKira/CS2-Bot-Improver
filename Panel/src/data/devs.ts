@@ -3,9 +3,9 @@ export const PROJECT_URL = "https://github.com/ed0ard/CS2-Bot-Improver";
 
 // Contributors, in the order shown.
 export const DEVS: string[] = [
+  "XBribo",
   "ed0ard",
   "newbie046",
-  "XBribo",
   "Misaka17032",
   "unicbm",
   "YYBN",
@@ -14,10 +14,13 @@ export const DEVS: string[] = [
   "DANK1NG1I45l4",
   "XYC_KL",
   "mrc4tt",
+  "xiaoyueyoqwq",
   "quachuoi2",
   "WanderDream",
   "Gardevior",
   "droyer57",
+  "crombieman",
+  "Win9x9xME",
   "T1mLuk0",
   "Ch1ANnn1",
   "zzf0607",
