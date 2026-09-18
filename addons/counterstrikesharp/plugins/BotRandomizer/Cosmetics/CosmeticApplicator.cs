@@ -93,13 +93,13 @@ internal sealed class CosmeticApplicator
                     item.NetworkedDynamicAttributes.Attributes.RemoveAll();
                     AssignItemId(item);
                     weapon.FallbackPaintKit = selection.PaintKit;
-                    weapon.FallbackSeed = 0;
+                    weapon.FallbackSeed = selection.Seed;
                     weapon.FallbackWear = selection.Wear;
                     SetTextureAttributes(
                         item.NetworkedDynamicAttributes,
                         item.AttributeList,
                         selection.PaintKit,
-                        0,
+                        selection.Seed,
                         selection.Wear);
                 }
                 Utilities.SetStateChanged(weapon, "CEconEntity", "m_AttributeManager");
@@ -114,6 +114,48 @@ internal sealed class CosmeticApplicator
         catch (Exception exception)
         {
             _logger.LogError(exception, "[BotRandomizer] Failed to apply knife cosmetics");
+        }
+    }
+
+    internal bool ApplyGroundKnife(CBasePlayerWeapon weapon, KnifeSelection selection)
+    {
+        if (!weapon.IsValid)
+            return false;
+
+        try
+        {
+            var item = weapon.AttributeManager?.Item;
+            if (item is null)
+                return false;
+
+            weapon.AcceptInput("ChangeSubclass", value: selection.DefIndex.ToString());
+            item.ItemDefinitionIndex = selection.DefIndex;
+            item.EntityQuality = 3;
+            if (_setAttributeByName is null)
+            {
+                Utilities.SetStateChanged(weapon, "CEconEntity", "m_AttributeManager");
+                return false;
+            }
+
+            item.AttributeList.Attributes.RemoveAll();
+            item.NetworkedDynamicAttributes.Attributes.RemoveAll();
+            AssignItemId(item);
+            weapon.FallbackPaintKit = selection.PaintKit;
+            weapon.FallbackSeed = selection.Seed;
+            weapon.FallbackWear = selection.Wear;
+            SetTextureAttributes(
+                item.NetworkedDynamicAttributes,
+                item.AttributeList,
+                selection.PaintKit,
+                selection.Seed,
+                selection.Wear);
+            Utilities.SetStateChanged(weapon, "CEconEntity", "m_AttributeManager");
+            return selection.PaintKit > 0;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "[BotRandomizer] Failed to apply ground knife cosmetics");
+            return false;
         }
     }
 
@@ -255,10 +297,15 @@ internal sealed class CosmeticApplicator
     private readonly record struct KnifeCosmeticFingerprint(
         ushort DefIndex,
         int PaintKit,
+        int Seed,
         int WearBits)
     {
         internal static KnifeCosmeticFingerprint From(KnifeSelection selection)
-            => new(selection.DefIndex, selection.PaintKit, BitConverter.SingleToInt32Bits(selection.Wear));
+            => new(
+                selection.DefIndex,
+                selection.PaintKit,
+                selection.Seed,
+                BitConverter.SingleToInt32Bits(selection.Wear));
     }
 
     private readonly record struct GloveCosmeticFingerprint(

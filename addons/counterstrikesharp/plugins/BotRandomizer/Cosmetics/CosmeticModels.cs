@@ -93,10 +93,12 @@ internal sealed record WeaponCosmeticSelection(
     int Seed,
     float Wear,
     bool Legacy,
+    bool StatTrak,
+    int StatTrakValue,
     IReadOnlyList<StickerSelection> Stickers,
     KeychainSelection? Keychain);
 
-internal sealed record KnifeSelection(ushort DefIndex, int PaintKit, float Wear);
+internal sealed record KnifeSelection(ushort DefIndex, int PaintKit, int Seed, float Wear);
 
 internal sealed record GloveSelection(ushort DefIndex, int PaintKit, float Wear);
 

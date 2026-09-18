@@ -1,0 +1,84 @@
+{
+  "Active Duty + Legacy Defusal": {
+    "de_ancient": {
+      "ws": false,
+      "display": "Ancient",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_anubis": {
+      "ws": false,
+      "display": "Anubis",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_cache": {
+      "ws": false,
+      "display": "Cache",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_dust2": {
+      "ws": false,
+      "display": "Dust II",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_inferno": {
+      "ws": false,
+      "display": "Inferno",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_mirage": {
+      "ws": false,
+      "display": "Mirage",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_nuke": {
+      "ws": false,
+      "display": "Nuke",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_overpass": {
+      "ws": false,
+      "display": "Overpass",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_train": {
+      "ws": false,
+      "display": "Train",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    },
+    "de_vertigo": {
+      "ws": false,
+      "display": "Vertigo",
+      "mapid": "",
+      "minplayers": 0,
+      "maxplayers": 0,
+      "weight": 1
+    }
+  }
+}

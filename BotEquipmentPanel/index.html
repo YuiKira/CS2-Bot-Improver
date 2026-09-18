@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CS2 Bot Tools</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">B</span>
+        <div><strong>CS2 Bot Tools</strong><small>装备配置器</small></div>
+      </div>
+      <nav class="primary-nav" aria-label="配置类别">
+        <button class="nav-item is-active" data-view="guns"><span>枪械皮肤</span><b id="gunTotal">0</b></button>
+        <button class="nav-item" data-view="knives"><span>刀具配置</span><b id="knifeTotal">0</b></button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <button id="openOriginal" class="secondary-command">打开原始控制面板</button>
+      <button id="uninstall" class="danger-command">卸载 CS2-Bot-Improver</button>
+      <button id="shutdown" class="quiet-command">关闭装备面板</button>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="path-field">
+          <div class="path-heading"><label for="rootPath">CS2 game/csgo 文件夹</label><span id="modeState" class="mode-state">检测运行模式</span></div>
+          <div><input id="rootPath" type="text" spellcheck="false"><button id="browse">浏览</button><button id="reload" title="重新读取配置">重新加载</button><button id="enableBotMode" class="mode-command" hidden>启用 Bot 模式</button></div>
+        </div>
+        <div class="top-actions">
+          <span id="saveState" class="save-state">正在载入</span>
+          <button id="save" class="primary-command">保存配置</button>
+        </div>
+      </header>
+
+      <section id="gunsView" class="view view-guns">
+        <aside class="weapon-column">
+          <div class="column-head"><h1>武器</h1><input id="weaponSearch" type="search" placeholder="搜索武器"></div>
+          <div id="weaponList" class="weapon-list"></div>
+        </aside>
+
+        <section class="skin-column">
+          <div class="skin-toolbar">
+            <div><h2 id="weaponTitle">AK-47</h2><p id="selectionSummary">全部皮肤随机</p></div>
+            <input id="skinSearch" type="search" placeholder="搜索名称或 Paint Kit">
+            <button id="selectVisible">全选当前结果</button>
+            <button id="clearWeapon">清空选择</button>
+          </div>
+          <div id="skinGrid" class="skin-grid" aria-live="polite"></div>
+        </section>
+
+        <aside id="detailPanel" class="detail-panel">
+          <div id="detailEmpty" class="detail-empty"><strong>选择一款皮肤</strong><span>查看图片并编辑独立参数</span></div>
+          <div id="detailContent" class="detail-content" hidden>
+            <img id="detailImage" alt="">
+            <div class="detail-title"><span id="detailWeapon"></span><h2 id="detailName"></h2><small id="detailMeta"></small></div>
+            <button id="toggleFocused" class="selection-command"></button>
+            <div class="detail-tabs" role="tablist" aria-label="枪械配置">
+              <button id="gunSkinTab" class="is-active" role="tab">皮肤参数</button>
+              <button id="gunStickerTab" role="tab">印花</button>
+            </div>
+            <div id="gunSkinPanel">
+              <div class="field-group">
+                <div class="field-title"><label for="wearNumber">磨损值</label><span id="wearRange"></span></div>
+                <input id="wearSlider" type="range" step="0.000001">
+                <input id="wearNumber" type="number" step="0.000001">
+              </div>
+              <div class="field-group">
+                <div class="field-title"><label for="seedNumber">模板编号</label><span>0 - 1000</span></div>
+                <input id="seedNumber" type="number" min="0" max="1000" step="1">
+              </div>
+              <div class="toggle-row">
+                <div><strong>StatTrak 计数器</strong><small>显示随机静态数字</small></div>
+                <label class="switch"><input id="statTrak" type="checkbox"><span></span></label>
+              </div>
+              <div id="statRange" class="stat-range">
+                <label>最小值<input id="statMin" type="number" min="0" max="999999"></label>
+                <label>最大值<input id="statMax" type="number" min="0" max="999999"></label>
+              </div>
+            </div>
+            <div id="gunStickerPanel" class="sticker-editor" hidden>
+              <div class="toggle-row sticker-global-toggle" hidden>
+                <div><strong>全局启用印花</strong><small id="stickerGlobalState"></small></div>
+                <label class="switch"><input id="stickersEnabled" type="checkbox"><span></span></label>
+              </div>
+              <div class="sticker-mode" role="group" aria-label="印花模式">
+                <button data-sticker-mode="random">随机</button>
+                <button data-sticker-mode="off">关闭</button>
+                <button data-sticker-mode="custom">自定义</button>
+              </div>
+              <div class="preset-panel">
+                <select id="stickerPresetSelect" aria-label="印花方案"></select>
+                <button id="applyStickerPreset">应用</button>
+                <input id="stickerPresetName" type="text" maxlength="60" placeholder="自定义方案名称">
+                <div class="preset-actions">
+                  <button id="saveStickerPreset">另存方案</button>
+                  <button id="updateStickerPreset">更新</button>
+                  <button id="deleteStickerPreset" class="danger-text">删除</button>
+                </div>
+              </div>
+              <div id="stickerSlots" class="sticker-slots"></div>
+              <div class="sticker-commands">
+                <button id="chooseSticker">选择印花</button>
+                <button id="applyStickerFour">四连同款</button>
+                <button id="applyStickerAll">填满全部</button>
+                <button id="clearStickerSlot">清空</button>
+              </div>
+              <label class="copy-position"><input id="copyStickerPosition" type="checkbox">同时复制位置偏移</label>
+              <div id="stickerParameters" class="sticker-parameters">
+                <div class="field-group">
+                  <div class="field-title"><label for="stickerWear">刮花百分比</label><span id="stickerWearValue">0%</span></div>
+                  <input id="stickerWear" type="range" min="0" max="100" step="1">
+                </div>
+                <div class="field-group">
+                  <div class="field-title"><label for="stickerRotation">旋转角度</label><span id="stickerRotationValue">0°</span></div>
+                  <input id="stickerRotation" type="range" min="-180" max="180" step="1">
+                </div>
+                <div class="sticker-offsets">
+                  <label>X 偏移<input id="stickerX" type="number" min="-1" max="1" step="0.01"></label>
+                  <label>Y 偏移<input id="stickerY" type="number" min="-1" max="1" step="0.01"></label>
+                </div>
+                <button id="resetStickerTransform" class="reset-transform">恢复默认参数</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section id="knivesView" class="view view-guns" hidden>
+        <aside class="weapon-column knife-type-column">
+          <div class="column-head"><h1>刀型</h1><input id="knifeTypeSearch" type="search" placeholder="搜索刀型"></div>
+          <div id="knifeTypeList" class="weapon-list knife-type-list"></div>
+        </aside>
+
+        <section class="skin-column">
+          <div class="skin-toolbar">
+            <div><h2 id="knifeTitle">爪子刀</h2><p id="knifeSelectionSummary">全部皮肤随机</p></div>
+            <input id="knifeSkinSearch" type="search" placeholder="搜索名称或 Paint Kit">
+            <button id="knifeSelectVisible">全选当前结果</button>
+            <button id="knifeClear">清空选择</button>
+          </div>
+          <div id="knifeSkinGrid" class="skin-grid" aria-live="polite"></div>
+        </section>
+
+        <aside class="detail-panel">
+          <div id="knifeDetailEmpty" class="detail-empty"><strong>选择一款刀具皮肤</strong><span>查看图片并编辑独立参数</span></div>
+          <div id="knifeDetailContent" class="detail-content" hidden>
+            <img id="knifeDetailImage" alt="">
+            <div class="detail-title"><span id="knifeDetailWeapon"></span><h2 id="knifeDetailName"></h2><small id="knifeDetailMeta"></small></div>
+            <button id="knifeToggleFocused" class="selection-command"></button>
+            <div class="field-group">
+              <div class="field-title"><label for="knifeWearNumber">磨损值</label><span id="knifeWearRange"></span></div>
+              <input id="knifeWearSlider" type="range" step="0.000001">
+              <input id="knifeWearNumber" type="number" step="0.000001">
+            </div>
+            <div class="field-group">
+              <div class="field-title"><label for="knifeSeedNumber">模板编号</label><span>0 - 1000</span></div>
+              <input id="knifeSeedNumber" type="number" min="0" max="1000" step="1">
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+  <div id="stickerPickerModal" class="modal-backdrop" hidden>
+    <section class="sticker-picker" role="dialog" aria-modal="true" aria-labelledby="stickerPickerTitle">
+      <header class="sticker-picker-head">
+        <div><h2 id="stickerPickerTitle">选择印花</h2><span id="stickerPickerSlot"></span></div>
+        <button id="closeStickerPicker" class="icon-close" title="关闭" aria-label="关闭">×</button>
+      </header>
+      <div class="sticker-searchbar">
+        <input id="stickerSearch" type="search" autocomplete="off" placeholder="搜索名称、赛事、战队、选手或 ID">
+        <select id="stickerFinish" aria-label="印花类型">
+          <option value="">全部类型</option>
+          <option value="paper">普通</option>
+          <option value="holo">全息</option>
+          <option value="foil">闪亮（Foil）</option>
+          <option value="glitter">闪亮（Glitter）</option>
+          <option value="gold">金色</option>
+          <option value="lenticular">透镜</option>
+          <option value="embroidered">刺绣</option>
+        </select>
+      </div>
+      <div id="stickerResultState" class="sticker-result-state"></div>
+      <div id="stickerResults" class="sticker-results"></div>
+    </section>
+  </div>
+  <div id="uninstallModal" class="modal-backdrop" hidden>
+    <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="uninstallTitle">
+      <div class="modal-head">
+        <span class="warning-mark">!</span>
+        <div><h2 id="uninstallTitle">卸载 CS2-Bot-Improver</h2><p id="uninstallSubtitle">卸载前请确认以下事项</p></div>
+      </div>
+      <div id="uninstallFirst" class="modal-body">
+        <p>请先完全退出 CS2 和原始控制面板。卸载将删除本项目插件、启动器、皮肤配置及相关文件。</p>
+        <p>卸载完成后，必须通过 Steam 验证游戏文件完整性，才能恢复本项目修改过的 CS2 原生文件。</p>
+      </div>
+      <div id="uninstallSecond" class="modal-body" hidden>
+        <p>即将删除 <strong id="uninstallCount">0</strong> 个已安装项目文件，此操作无法撤销。</p>
+        <label>目标目录</label><code id="uninstallRoot"></code>
+        <p class="final-warning">这是第二次确认。继续后当前启动器也会自动删除。</p>
+      </div>
+      <div class="modal-actions">
+        <button id="uninstallCancel" class="modal-cancel">取消</button>
+        <button id="uninstallContinue" class="modal-continue">继续卸载</button>
+        <button id="uninstallConfirm" class="modal-confirm" hidden>确认卸载</button>
+      </div>
+    </section>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

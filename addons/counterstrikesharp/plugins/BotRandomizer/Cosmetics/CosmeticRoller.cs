@@ -17,15 +17,18 @@ internal sealed class CosmeticRoller
     private readonly Random _random;
     private readonly CosmeticCatalog _catalog;
     private readonly CharmPlacementCatalog _charmPlacements;
+    private readonly BotRandomizerCustomConfig _customConfig;
     private readonly WeaponWearAllocator _wearAllocator = new();
 
     internal CosmeticRoller(
         CosmeticCatalog catalog,
         CharmPlacementCatalog charmPlacements,
+        BotRandomizerCustomConfig customConfig,
         Random? random = null)
     {
         _catalog = catalog;
         _charmPlacements = charmPlacements;
+        _customConfig = customConfig;
         _random = random ?? new Random();
     }
 
@@ -53,48 +56,142 @@ internal sealed class CosmeticRoller
         if (!_catalog.TryGetWeapon(defIndex, out var weapon) || weapon.Paints.Count == 0)
             return null;
 
-        var paint = PickWeaponPaint(weapon.Paints);
-        var stickers = RollStickers(paint.Legacy
+        var paint = PickConfiguredWeaponPaint(weapon);
+        var configured = _customConfig.GetWeaponSettings(defIndex, paint.PaintKit);
+        var stickerSchemaCount = paint.Legacy
             ? weapon.LegacyStickerSchemaCount
-            : weapon.StickerSchemaCount);
+            : weapon.StickerSchemaCount;
+        var stickers = ResolveStickers(configured, stickerSchemaCount);
         var keychain = RollKeychain(defIndex);
-        var wear = _wearAllocator.Reserve(defIndex, paint, stickers);
+        var wear = configured is null
+            ? _wearAllocator.Reserve(defIndex, paint, stickers)
+            : Math.Clamp(configured.Wear, paint.WearMin, paint.WearMax);
+        var statTrakValue = configured?.StatTrak == true
+            ? _random.Next(configured.StatTrakMin, configured.StatTrakMax + 1)
+            : 0;
         var selection = new WeaponCosmeticSelection(
             paint.PaintKit,
-            0,
+            configured?.Seed ?? 0,
             wear,
             paint.Legacy,
+            configured?.StatTrak == true,
+            statTrakValue,
             stickers,
             keychain);
         loadout.Weapons.Add(defIndex, selection);
         return selection;
     }
 
+    private IReadOnlyList<StickerSelection> ResolveStickers(
+        WeaponSkinSettings? configured,
+        int schemaCount)
+    {
+        if (!_customConfig.StickersEnabled
+            || configured?.StickerMode == BotRandomizerCustomConfig.DisabledStickerMode)
+        {
+            return Array.Empty<StickerSelection>();
+        }
+
+        if (configured?.StickerMode == BotRandomizerCustomConfig.CustomStickerMode)
+        {
+            var selections = new List<StickerSelection>();
+            var usedSchemas = new HashSet<uint>();
+            foreach (var sticker in (configured.Stickers ?? [])
+                .Where(sticker => sticker.Slot >= 0 && sticker.Slot < MaximumStickers)
+                .OrderBy(sticker => sticker.Slot))
+            {
+                var schema = ReserveStickerSchema(sticker.Slot, schemaCount, usedSchemas);
+                selections.Add(new StickerSelection(
+                    sticker.DefIndex,
+                    sticker.Slot,
+                    schema,
+                    sticker.Wear,
+                    sticker.Rotation,
+                    sticker.X,
+                    sticker.Y));
+            }
+            return selections;
+        }
+
+        return RollStickers(schemaCount);
+    }
+
+    private static uint ReserveStickerSchema(
+        int preferred,
+        int schemaCount,
+        HashSet<uint> used)
+    {
+        if (preferred >= 0 && preferred < schemaCount && used.Add((uint)preferred))
+            return (uint)preferred;
+        for (var index = 0; index < schemaCount; index++)
+        {
+            if (used.Add((uint)index))
+                return (uint)index;
+        }
+        return 0;
+    }
+
     internal void ResetMap() => _wearAllocator.Reset();
 
     private (KnifeSelection Knife, GloveSelection Glove) RollOutfit()
     {
-        var knifeDefinition = PickWeighted(
-            RandomizerAssets.Knives,
-            knife => knife.Weight);
-        if (!_catalog.TryGetKnifePaints(knifeDefinition.DefIndex, out var knifePaints))
-        {
-            throw new InvalidOperationException(
-                $"No paint catalog for knife {knifeDefinition.DefIndex}.");
-        }
-        var knifePaint = PickKnifePaint(knifePaints);
+        var configuredKnifeDefs = _customConfig.KnifeDefIndexes
+            .Where(defIndex => _catalog.TryGetKnifePaints(defIndex, out _))
+            .ToArray();
+        var knifeDefIndex = configuredKnifeDefs.Length > 0
+            ? Pick(configuredKnifeDefs)
+            : PickWeighted(RandomizerAssets.Knives, knife => knife.Weight).DefIndex;
         var glove = PickWeighted(
             _catalog.Gloves,
             gloveVariant => RandomizerAssets.GetGloveVariantWeight(gloveVariant.DefIndex));
         return (
-            new KnifeSelection(
-                knifeDefinition.DefIndex,
-                knifePaint.PaintKit,
-                DefaultWear(knifePaint.WearMin, knifePaint.WearMax)),
+            RollKnife(knifeDefIndex),
             new GloveSelection(
                 glove.DefIndex,
                 glove.PaintKit,
                 DefaultWear(glove.WearMin, glove.WearMax)));
+    }
+
+    internal KnifeSelection RollKnife(ushort defIndex)
+    {
+        if (!_catalog.TryGetKnifePaints(defIndex, out var paints) || paints.Count == 0)
+            throw new InvalidOperationException($"No paint catalog for knife {defIndex}.");
+
+        IReadOnlyList<KnifePaintCatalogEntry> pool = paints;
+        var configuredPool = false;
+        if (_customConfig.KnifePaintKitsByDefIndex.TryGetValue(defIndex, out var selected))
+        {
+            if (selected.Count > 0)
+            {
+                var selectedPaints = selected.ToHashSet();
+                var filtered = paints.Where(paint => selectedPaints.Contains(paint.PaintKit)).ToArray();
+                if (filtered.Length > 0)
+                {
+                    pool = filtered;
+                    configuredPool = true;
+                }
+            }
+        }
+        else if (_customConfig.KnifePaintKits.Count > 0)
+        {
+            var selectedPaints = _customConfig.KnifePaintKits.ToHashSet();
+            var filtered = paints.Where(paint => selectedPaints.Contains(paint.PaintKit)).ToArray();
+            if (filtered.Length > 0)
+            {
+                pool = filtered;
+                configuredPool = true;
+            }
+        }
+
+        var paint = configuredPool ? Pick(pool) : PickKnifePaint(pool);
+        var configured = _customConfig.GetKnifeSettings(defIndex, paint.PaintKit);
+        return new KnifeSelection(
+            defIndex,
+            paint.PaintKit,
+            configured?.Seed ?? 0,
+            configured is null
+                ? DefaultWear(paint.WearMin, paint.WearMax)
+                : Math.Clamp(configured.Wear, paint.WearMin, paint.WearMax));
     }
 
     private IReadOnlyList<StickerSelection> RollStickers(int schemaCount)
@@ -239,6 +336,21 @@ internal sealed class CosmeticRoller
             rarityPools,
             pool => RandomizerAssets.GetWeaponRarityWeight(pool[0].Rarity));
         return Pick(rarityPool);
+    }
+
+    private PaintCatalogEntry PickConfiguredWeaponPaint(WeaponCatalogEntry weapon)
+    {
+        if (_customConfig.WeaponPaintKits.TryGetValue(weapon.DefIndex, out var selected)
+            && selected.Count > 0)
+        {
+            var selectedPaints = selected.ToHashSet();
+            var filtered = weapon.Paints
+                .Where(paint => selectedPaints.Contains(paint.PaintKit))
+                .ToArray();
+            if (filtered.Length > 0)
+                return Pick(filtered);
+        }
+        return PickWeaponPaint(weapon.Paints);
     }
 
     private KnifePaintCatalogEntry PickKnifePaint(

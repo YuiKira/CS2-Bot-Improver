@@ -74,12 +74,20 @@ internal sealed class WeaponItemViewStore : IDisposable
             item.ItemDefinitionIndex = weapon.DefIndex;
             AssignItemId(item);
             item.AccountID = AccountIdFromSteamId(steamId);
-            item.EntityQuality = 4;
+            item.EntityQuality = selection.StatTrak ? 9 : 4;
 
             attributes.Attributes.RemoveAll();
             SetAttribute(attributes, "set item texture prefab", selection.PaintKit);
             SetAttribute(attributes, "set item texture seed", selection.Seed);
             SetAttribute(attributes, "set item texture wear", selection.Wear);
+            if (selection.StatTrak)
+            {
+                SetAttribute(
+                    attributes,
+                    "kill eater",
+                    AttributeEncoding.Int32BitsToSingle(selection.StatTrakValue));
+                SetAttribute(attributes, "kill eater score type", 0f);
+            }
 
             if (includeStickers)
             {
