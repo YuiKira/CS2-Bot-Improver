@@ -3,13 +3,16 @@
 This is an experimental compatibility package, not a confirmed in-game fix.
 Back up your existing installation and settings before replacing the package.
 
+Updated in place on October 1, 2026. Download the asset again if you downloaded the September 30 build.
+
 ## Changes
 
 - Update MetaMod to 2.0.0.1472 and CounterStrikeSharp (with runtime) to 1.0.376.
-- Update the complete BotController native/managed stack to 0.7.0 (ABI 22), BotHider to 0.5.1, and BotVision to 0.3.0 using official release binaries.
+- Update the complete BotController native/managed stack to 0.7.1 (ABI 22), BotHider to 0.5.1, and BotVision to 0.3.0 using official release binaries. BotController 0.7.1 primarily fixes Linux loading; it does not claim a new Windows Bot behavior fix.
+- Update NadeSystem to the official 1.2.2 build, which fixes smoke, HE and Molotov projectile creation signatures for the CS2 update. Preserve grenade lineup data and upstream strategy.
 - Apply the upstream September 25 economic attribute signature fix to our custom skins plugin (1.6.2-beta.1).
 - Rebuild skins and map voting against CounterStrikeSharp 1.0.376; retain the equipment panel and map-switching features.
-- Keep the original BotAI, BotState, BotAimImprover, BotBuy and NadeSystem binaries and behavior unchanged.
+- Keep the original BotAI, BotState, BotAimImprover and BotBuy binaries unchanged. No custom Bot or grenade strategy changes are introduced.
 - Remove the stale duplicate desktop publish directory from the package.
 
 ## Validation And Limitations
@@ -18,7 +21,7 @@ The custom plugins and desktop panel compile successfully. The five-slot custom 
 
 No CS2 client/server is available in the build environment, so plugin loading, skins, map transitions, Bot movement/aim and grenade behavior have NOT been tested in-game. Remaining native signatures in legacy behavior plugins may still require upstream fixes. Do not treat this Beta as production-ready.
 
-BotController 0.7.0 changes its recording format; older BotController recordings are not compatible. This is not a claim that NadeSystem's own data format changed.
+BotController 0.7.x changes its recording format compared with 0.6.x; older BotController recordings are not compatible. This is not a claim that NadeSystem's own data format changed.
 
 When reporting a failure, include the CS2 version, `meta list`, `css_plugins list`, the CounterStrikeSharp error log, and reproduction steps. For crashes, include the crash dump if available. Remove secrets and personal data first.
 
