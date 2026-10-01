@@ -70,6 +70,9 @@ copyBuild(path.join(repo, 'addons/counterstrikesharp/shared/MapChooserAPI/bin/Re
   path.join(stage, 'addons/counterstrikesharp/shared/MapChooserAPI'));
 copyBuild(path.join(repo, 'DesktopPanel/bin/Release/net48'), stage, new Set(['publish']));
 fs.copyFileSync(path.join(repo, 'dist/BETA-NOTES.md'), path.join(stage, 'BETA-NOTES.md'));
+execFileSync(process.env.CS2_DOTNET || 'dotnet', ['run', '--project',
+  path.join(repo, 'scripts/GameInfoTool/GameInfoTool.csproj'), '-c', 'Release', '--',
+  path.join(repo, 'dist/gameinfo-online.gi'), stage], {stdio: 'inherit'});
 for (const [file, expected] of Object.entries(protectedHashes)) {
   if (sha(path.join(stage, 'addons/counterstrikesharp/plugins', file)) !== expected) throw new Error(`Upstream behavior binary changed: ${file}`);
 }
@@ -77,7 +80,7 @@ if (fs.existsSync(path.join(stage, 'addons/counterstrikesharp/plugins/BotRandomi
   throw new Error('Package must not contain user cosmetic settings');
 }
 fs.writeFileSync(path.join(stage, 'beta-components.json'), JSON.stringify({
-  release: 'cs2-20260924-windows-beta.1', revision_date: '2026-10-01', in_game_validated: false,
+  release: 'cs2-20260924-windows-beta.1', revision_date: '2026-10-01-gameinfo-fix', in_game_validated: false,
   base_sha256: baseSha,
   dependencies: dependencies.map(([asset, sha256]) => ({asset, sha256})),
   unchanged_upstream_behavior_binaries: protectedHashes,

@@ -5,6 +5,8 @@ Back up your existing installation and settings before replacing the package.
 
 Updated in place on October 1, 2026. Download the asset again if you downloaded the September 30 build.
 
+Also refreshed on October 1 to fix the fatal `csgo_imported/gameinfo.gi` loading error. The package now uses the official configuration supplied from the affected installation, with only the two Bot/MetaMod search paths added. All three bundled gameinfo files are updated. The equipment panel patches the current game's SearchPaths instead of restoring a stale complete configuration; missing layered-mod dependencies are rejected with a Steam verification prompt. Other game builds may still require restoring their own official gameinfo first.
+
 ## Changes
 
 - Update MetaMod to 2.0.0.1472 and CounterStrikeSharp (with runtime) to 1.0.376.
@@ -33,4 +35,4 @@ Use the previous `cs2-v1.4.4-skin-map-r1` release ZIP as the base. Build BotRand
 node scripts/package-cs2-beta.js /path/to/previous-release.zip /path/to/downloads /path/to/new-release.zip
 ```
 
-The script verifies all downloaded checksums and embeds `beta-components.json`. The updated third-party providers are packaged from official binaries; the repository's older third-party source snapshots are not used to rebuild those providers.
+The script verifies all downloaded checksums and embeds `beta-components.json`. It runs the .NET GameInfoTool to generate mode configurations from `dist/gameinfo-online.gi`; set `CS2_DOTNET` if dotnet is not on PATH. The updated third-party providers are packaged from official binaries; the repository's older third-party source snapshots are not used to rebuild those providers.

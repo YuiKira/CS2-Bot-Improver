@@ -252,7 +252,7 @@ internal sealed class MainForm : Form
 
         var requiredNameFiles = new[]
         {
-            Path.Combine("addons", "metamod", "bin", "server.dll"),
+            Path.Combine("addons", "metamod", "bin", "win64", "server.dll"),
             Path.Combine("addons", "counterstrikesharp", "bin", "win64", "counterstrikesharp.dll"),
             Path.Combine("addons", "counterstrikesharp", "plugins", "BotRandomizer", "BotRandomizer.dll"),
             Path.Combine("addons", "BotHider", "bin", "win64", "BotHider.dll"),
@@ -271,7 +271,7 @@ internal sealed class MainForm : Form
             ["root_valid"] = true,
             ["bot_mode_active"] = botModeActive,
             ["names_ready"] = botModeActive && missing.Count == 0,
-            ["can_enable_bot_mode"] = File.Exists(Path.Combine(root, "backup", "WithBots", "gameinfo.gi")),
+            ["can_enable_bot_mode"] = File.Exists(gameInfoPath),
             ["missing"] = missing
         };
     }
@@ -281,11 +281,22 @@ internal sealed class MainForm : Form
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
             throw new DirectoryNotFoundException("请先选择正确的 CS2 game/csgo 文件夹。");
 
-        var source = Path.Combine(root, "backup", "WithBots", "gameinfo.gi");
+        var source = Path.Combine(root, "gameinfo.gi");
         if (!File.Exists(source))
-            throw new FileNotFoundException("没有找到 Bot 模式备份文件，请重新覆盖安装完整发布包。", source);
+            throw new FileNotFoundException("没有找到游戏配置，请在 Steam 验证游戏文件完整性。", source);
 
-        File.Copy(source, Path.Combine(root, "gameinfo.gi"), true);
+        var current = File.ReadAllText(source, Encoding.UTF8);
+        GameInfoConfig.ValidateLayers(current, root);
+        var online = GameInfoConfig.SetBotMode(current, false);
+        var withBots = GameInfoConfig.SetBotMode(online, true);
+        var onlineBackup = Path.Combine(root, "backup", "Online", "gameinfo.gi");
+        var botBackup = Path.Combine(root, "backup", "WithBots", "gameinfo.gi");
+        Directory.CreateDirectory(Path.GetDirectoryName(onlineBackup)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(botBackup)!);
+        var encoding = new UTF8Encoding(false);
+        File.WriteAllText(onlineBackup, online, encoding);
+        File.WriteAllText(botBackup, withBots, encoding);
+        File.WriteAllText(source, withBots, encoding);
     }
 
     private void BrowseForRoot()
