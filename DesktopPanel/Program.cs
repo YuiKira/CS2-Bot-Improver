@@ -313,9 +313,9 @@ internal sealed class MainForm : Form
 
     private void LaunchOriginalPanel()
     {
-        var path = Path.Combine(_appDirectory, "Panel v1.4.4.exe");
+        var path = Path.Combine(_appDirectory, "Panel v1.4.5.exe");
         if (!File.Exists(path))
-            throw new FileNotFoundException("没有找到 Panel v1.4.4.exe。", path);
+            throw new FileNotFoundException("没有找到 Panel v1.4.5.exe。", path);
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = _appDirectory });
     }
 
