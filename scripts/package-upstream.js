@@ -5,13 +5,13 @@ const crypto = require('crypto');
 const {execFileSync} = require('child_process');
 const repo = path.resolve(__dirname, '..');
 const [baseArg, previousArg, outputArg] = process.argv.slice(2);
-if (!baseArg || !previousArg || !outputArg) throw new Error('Usage: node scripts/package-upstream.js <official-v1.4.5.zip> <previous-custom.zip> <output.zip>');
+if (!baseArg || !previousArg || !outputArg) throw new Error('Usage: node scripts/package-upstream.js <official-v1.4.6.zip> <previous-custom.zip> <output.zip>');
 const base = path.resolve(baseArg), previous = path.resolve(previousArg), output = path.resolve(outputArg);
 const sha = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-const baseSha = 'ae37b86533abfe0547c5ad4346d478cd846727509fc092842a81240eb0130140';
-if (sha(base) !== baseSha) throw new Error('Unexpected official v1.4.5 asset');
+const baseSha = 'e66a17329ccb00b340555fb64b09b0771ea4a0aa04566e7b9a915d7ad4c6f28e';
+if (sha(base) !== baseSha) throw new Error('Unexpected official v1.4.6 asset');
 if (fs.existsSync(output)) throw new Error('Output already exists');
-const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'cs2-v145-stage-'));
+const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'cs2-v146-stage-'));
 execFileSync('unzip', ['-oq', base, '-d', stage]);
 function collect(root, prefix = '') {
   return fs.readdirSync(root, {withFileTypes: true}).flatMap(entry => {
@@ -43,7 +43,7 @@ for (const plugin of ['BotRandomizer', 'GG1MapChooser']) {
 copyBuild(path.join(repo, 'addons/counterstrikesharp/shared/MapChooserAPI/bin/Release/net10.0'),
   path.join(stage, 'addons/counterstrikesharp/shared/MapChooserAPI'));
 copyBuild(path.join(repo, 'DesktopPanel/bin/Release/net48'), stage);
-fs.copyFileSync(path.join(repo, 'dist/UPSTREAM-1.4.5-NOTES.md'), path.join(stage, 'BETA-NOTES.md'));
+fs.copyFileSync(path.join(repo, 'dist/UPSTREAM-1.4.6-NOTES.md'), path.join(stage, 'RELEASE-NOTES.md'));
 execFileSync(process.env.CS2_DOTNET || 'dotnet', ['run', '--project',
   path.join(repo, 'scripts/GameInfoTool/GameInfoTool.csproj'), '-c', 'Release', '--',
   path.join(repo, 'dist/gameinfo-online.gi'), stage], {stdio: 'inherit'});
@@ -51,10 +51,10 @@ for (const [file, expected] of Object.entries(protectedHashes)) {
   if (sha(path.join(stage, file)) !== expected) throw new Error(`Official file changed: ${file}`);
 }
 if (fs.existsSync(path.join(randomizer, 'BotRandomizer.custom.json'))) throw new Error('User settings must not be packaged');
-fs.writeFileSync(path.join(stage, 'beta-components.json'), JSON.stringify({
-  release: 'cs2-v1.4.5-skin-map-beta.1', upstream_version: '1.4.5',
+fs.writeFileSync(path.join(stage, 'release-components.json'), JSON.stringify({
+  release: 'cs2-v1.4.6-skin-map-r1', upstream_version: '1.4.6',
   base_sha256: baseSha, in_game_validated: false, unchanged_official_files: protectedHashes,
-  note: 'Official v1.4.5 behavior modules, dependencies, configs and panel are preserved byte-for-byte. Only BotRandomizer and gameinfo are replaced; map voting and equipment tools are added. Legacy vendored Bot sources are not rebuilt.'
+  note: 'Official v1.4.6 behavior modules, dependencies, configs and panel are preserved byte-for-byte. Only BotRandomizer and gameinfo are replaced; map voting and equipment tools are added. Legacy vendored Bot sources are not rebuilt.'
 }, null, 2) + '\n');
 execFileSync(process.execPath, [path.join(repo, 'scripts/generate-uninstall-manifest.js'), stage], {stdio: 'inherit'});
 execFileSync('zip', ['-qr', output, '.'], {cwd: stage});
