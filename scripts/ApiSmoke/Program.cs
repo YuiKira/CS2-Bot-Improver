@@ -28,7 +28,6 @@ foreach (var file in Directory.GetFiles(Path.Combine(css, "plugins"), "*.dll", S
         assembly ??= AssemblyLoadContext.Default.Assemblies.FirstOrDefault(a => a.GetName().Name == Path.GetFileNameWithoutExtension(file)) ?? AssemblyLoadContext.Default.LoadFromAssemblyPath(file);
         var resolved = assembly.ManifestModule.ResolveMember(System.Reflection.Metadata.Ecma335.MetadataTokens.GetToken(handle));
         if (resolved == null) throw new Exception("Unresolved API member");
-        
         count++;
     }
 }
