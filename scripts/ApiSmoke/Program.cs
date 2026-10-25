@@ -33,3 +33,19 @@ foreach (var file in Directory.GetFiles(Path.Combine(css, "plugins"), "*.dll", S
 }
 if (count == 0) throw new Exception("No API references tested");
 Console.WriteLine($"PASS: {count} direct managed CSS/Bot/map API member references resolve against packaged APIs. Native calls were not executed.");
+var policy = AssemblyLoadContext.Default.Assemblies
+    .FirstOrDefault(a => a.GetName().Name == "NadeSystem")
+    ?.GetType("NadeSystem.GrenadePolicy");
+if (policy != null) {
+    var blocks = policy.GetMethod("Blocks", BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new Exception("Missing grenade policy method");
+    var cases = new (string Type, bool Blocked)[] {
+        ("he", true), ("HE", true), ("hegrenade", true), ("weapon_hegrenade", true),
+        ("flash", false), ("smoke", false), ("molotov", false),
+        ("incendiary", false), ("decoy", false), (null, false)
+    };
+    foreach (var test in cases)
+        if ((bool)blocks.Invoke(null, new object[] {test.Type}) != test.Blocked)
+            throw new Exception($"Incorrect grenade policy for {test.Type}");
+    Console.WriteLine($"PASS: {cases.Length} compiled HE/non-HE grenade policy cases.");
+}

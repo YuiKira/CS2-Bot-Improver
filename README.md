@@ -86,11 +86,11 @@ On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve t
 
 ### Nades
 
-In the r4 custom package, NadeSystem is disabled at module level. The commands below remain documented for upstream reference; this build always keeps bot grenade throwing off. Human grenades are unaffected.
+In the r5 custom package, only bot HE grenades are blocked. Flashbangs, smoke, molotovs/incendiaries and decoys retain upstream behavior. Human grenades are unaffected. The default plugin mode is normal.
 
 | Command | Description |
 | --- | --- |
-| `bot_nades off` | Disable bot nade usage. **(Package default)** |
+| `bot_nades off` | Disable bot nade usage. |
 | `bot_nades less` | Use the same decision logic as normal mode with lower count limits. |
 | `bot_nades normal` | Use count limits close to those of human players. |
 | `bot_nades more` | Use the same decision logic as normal mode with higher count limits. |
