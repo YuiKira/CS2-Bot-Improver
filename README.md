@@ -88,9 +88,9 @@ On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve t
 
 | Command | Description |
 | --- | --- |
-| `bot_nades off` | Disable bot nade usage. |
+| `bot_nades off` | Disable bot nade usage. **(Package default)** |
 | `bot_nades less` | Use the same decision logic as normal mode with lower count limits. |
-| `bot_nades normal` | Use count limits close to those of human players. **(Default)** |
+| `bot_nades normal` | Use count limits close to those of human players. |
 | `bot_nades more` | Use the same decision logic as normal mode with higher count limits. |
 | `bot_nades max` | Bots have minimal limitations and think less before throwing nades. |
 | `bot_nades` | Show the current nade mode. |
