@@ -86,6 +86,8 @@ On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve t
 
 ### Nades
 
+In the r4 custom package, NadeSystem is disabled at module level. The commands below remain documented for upstream reference; this build always keeps bot grenade throwing off. Human grenades are unaffected.
+
 | Command | Description |
 | --- | --- |
 | `bot_nades off` | Disable bot nade usage. **(Package default)** |
