@@ -26,20 +26,20 @@ changes['RELEASE-NOTES.md'] = (root / 'dist/REACTION-TUNING-NOTES.md').read_byte
 with zipfile.ZipFile(source) as old:
     metadata = json.loads(old.read('release-components.json'))
     metadata['release'] = 'cs2-v1.4.6-skin-map-r3'
-    metadata['revision'] = '2026-10-25-runtime-fix'
+    metadata['revision'] = '2026-10-26-all-difficulties'
     metadata['base_release'] = 'cs2-v1.4.6-skin-map-r2'
     metadata['repack_source_sha256'] = source_hash
     metadata['base_sha256'] = hashlib.sha256(baseline_bytes).hexdigest()
     metadata['in_game_validated'] = False
     metadata['custom_tuning'] = {
-        'difficulty': 'Medium', 'implementation': 'native IsNoticable pre-hook',
+        'difficulty': 'all (Low, Medium, High)', 'implementation': 'native IsNoticable pre-hook',
         'pro_extra_notice_ms': 100, 'rank_extra_notice_ms': 40,
         'profile_reaction_values': 'original baseline (no duplicate increment)',
         'bot_nades': 'normal; HE filtered', 'diagnostic_command': 'bot_reaction_status'}
     metadata['reaction_module_override'] = {
-        'version': '1.8.14-reaction.1', 'source': 'compat/BotAIReaction',
+        'version': '1.8.14-reaction.2', 'source': 'compat/BotAIReaction',
         'sha256': hashlib.sha256(changes['addons/counterstrikesharp/plugins/BotAI/BotAI.dll']).hexdigest()}
-    metadata['note'] = 'Validated r2 compatibility stack with a runtime notice gate for Medium bots and an HE-only grenade filter. Non-HE grenade behavior, native binaries, skins, maps, aiming and AttackDelay are preserved.'
+    metadata['note'] = 'Validated r2 compatibility stack with a runtime notice gate for bots at all difficulties and an HE-only grenade filter. Non-HE grenade behavior, native binaries, skins, maps, aiming and AttackDelay are preserved.'
     for field in ['preserved_file_hashes', 'unchanged_official_files']:
         for path in changes:
             metadata.get(field, {}).pop(path, None)
