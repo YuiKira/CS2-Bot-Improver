@@ -86,6 +86,8 @@ On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve t
 
 ### Nades
 
+R3 now incorporates the official 1.4.7 Windows package, including Panel 1.4.7, BotVision 0.4.0 and Smarter-Bot 1.10.5 fixes, while preserving the custom skins and map features.
+
 In the corrected R3 package, only bot HE grenades are blocked. Flashbangs, smoke, molotovs/incendiaries and decoys retain upstream behavior. Human grenades are unaffected. The default plugin mode is normal. Bots at all difficulties (Low, Medium and High) use a runtime notice gate: Pro +100 ms and Rank +40 ms. Damage-triggered smoke reveal is disabled, and bullet smoke tunnels last 2 seconds. Run bot_reaction_status to verify the active gate and observed wait.
 
 | Command | Description |

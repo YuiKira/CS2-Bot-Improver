@@ -20,6 +20,12 @@ internal sealed class CosmeticRoller
     private readonly BotRandomizerCustomConfig _customConfig;
     private readonly WeaponWearAllocator _wearAllocator = new();
 
+    // Paint lists belong to this roller's immutable catalog and are reused across loadouts.
+    private readonly Dictionary<IReadOnlyList<PaintCatalogEntry>, IReadOnlyList<PaintCatalogEntry>[]> _weaponRarityPools =
+        new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<IReadOnlyList<KnifePaintCatalogEntry>, IReadOnlyList<KnifePaintCatalogEntry>[]> _knifeFinishPools =
+        new(ReferenceEqualityComparer.Instance);
+
     internal CosmeticRoller(
         CosmeticCatalog catalog,
         CharmPlacementCatalog charmPlacements,
@@ -34,15 +40,19 @@ internal sealed class CosmeticRoller
 
     internal BotCosmeticLoadout RollLoadout(byte team, int? preservedMusicKit = null)
     {
-        var modelPool = team == RandomizerAssets.CounterTerroristTeam
-            ? RandomizerAssets.CounterTerroristModels
-            : RandomizerAssets.TerroristModels;
+        var agentPool = team == RandomizerAssets.CounterTerroristTeam
+            ? RandomizerAssets.CounterTerroristAgents
+            : RandomizerAssets.TerroristAgents;
+        // One roll, two consumers: the pawn takes ModelPath at spawn and the team intro entity
+        // takes DefIndex, so the intro can never show a different agent than the bot itself.
+        var agent = Pick(agentPool);
         var (knife, glove) = RollOutfit();
 
         return new BotCosmeticLoadout
         {
             Team = team,
-            AgentModel = Pick(modelPool),
+            AgentModel = agent.ModelPath,
+            AgentDefIndex = agent.DefIndex,
             MusicKit = preservedMusicKit ?? Pick(_catalog.MusicKits),
             Knife = knife,
             Glove = glove
@@ -328,10 +338,14 @@ internal sealed class CosmeticRoller
 
     private PaintCatalogEntry PickWeaponPaint(IReadOnlyList<PaintCatalogEntry> paints)
     {
-        var rarityPools = paints
-            .GroupBy(paint => paint.Rarity)
-            .Select(group => (IReadOnlyList<PaintCatalogEntry>)group.ToArray())
-            .ToArray();
+        if (!_weaponRarityPools.TryGetValue(paints, out var rarityPools))
+        {
+            rarityPools = paints
+                .GroupBy(paint => paint.Rarity)
+                .Select(group => (IReadOnlyList<PaintCatalogEntry>)group.ToArray())
+                .ToArray();
+            _weaponRarityPools.Add(paints, rarityPools);
+        }
         var rarityPool = PickWeighted(
             rarityPools,
             pool => RandomizerAssets.GetWeaponRarityWeight(pool[0].Rarity));
@@ -356,10 +370,14 @@ internal sealed class CosmeticRoller
     private KnifePaintCatalogEntry PickKnifePaint(
         IReadOnlyList<KnifePaintCatalogEntry> paints)
     {
-        var finishPools = paints
-            .GroupBy(paint => paint.Finish, StringComparer.Ordinal)
-            .Select(group => (IReadOnlyList<KnifePaintCatalogEntry>)group.ToArray())
-            .ToArray();
+        if (!_knifeFinishPools.TryGetValue(paints, out var finishPools))
+        {
+            finishPools = paints
+                .GroupBy(paint => paint.Finish, StringComparer.Ordinal)
+                .Select(group => (IReadOnlyList<KnifePaintCatalogEntry>)group.ToArray())
+                .ToArray();
+            _knifeFinishPools.Add(paints, finishPools);
+        }
         var finishPool = PickWeighted(
             finishPools,
             pool => _catalog.GetKnifeFinishWeight(pool[0].Finish));

@@ -31,8 +31,8 @@ public sealed class BotRandomizerPlugin : BasePlugin
     private bool _giveNamedItemErrorLogged;
 
     public override string ModuleName => "BotRandomizer";
-    public override string ModuleVersion => "1.6.2-beta.1";
-    public override string ModuleAuthor => "ed0ard, Misaka17032 & unicbm";
+    public override string ModuleVersion => "1.6.2-upstream147.1";
+    public override string ModuleAuthor => "ed0ard, Misaka17032, unicbm & XBribo";
     public override string ModuleDescription =>
         "Stable per-bot knives, gloves, weapon skins, stickers, charms, agents and music kits";
 
@@ -120,6 +120,7 @@ public sealed class BotRandomizerPlugin : BasePlugin
         MemoryFunctionWithReturn<nint, string, float, int>? writer = null;
         try
         {
+            // SetOrAddAttributeValueByName
             writer = new MemoryFunctionWithReturn<nint, string, float, int>(
                 RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
                     ? "55 48 89 E5 41 57 41 56 41 55 49 89 FD 41 54 53 48 89 F3 48 83 EC ? F3 0F 11 85"
@@ -134,23 +135,51 @@ public sealed class BotRandomizerPlugin : BasePlugin
 
         _applicator = new CosmeticApplicator(writer, Logger);
         MemoryFunctionWithReturn<nint, nint>? itemViewConstructor = null;
+        Action<nint>? itemViewDestructor = null;
         if (writer is not null)
         {
             try
             {
+                if (RuntimeInformation.ProcessArchitecture != Architecture.X64)
+                    throw new PlatformNotSupportedException("CEconItemView destruction requires x64");
+
+                if (OperatingSystem.IsWindows())
+                {
+                    // MSVC scalar deleting destructor: flags=0 destroys members without
+                    // deleting the outer AllocHGlobal allocation.
+                    var destructor = new MemoryFunctionWithReturn<nint, uint, nint>(
+                        "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 48 89 7C 24 20 41 56 48 83 EC 20 48 8D 05 ? ? ? ? 8B EA 48 89 01 48 8B D9 83 79 78 00");
+                    itemViewDestructor = handle => destructor.Invoke(handle, 0);
+                }
+                else if (OperatingSystem.IsLinux())
+                {
+                    // Itanium ABI complete-object destructor (D1): void(this), no flags.
+                    // Do not bind D0, which also calls operator delete on the outer storage.
+                    var destructor = new MemoryFunctionVoid<nint>(
+                        "55 48 8D 05 ? ? ? ? 48 89 E5 41 57 41 56 41 55 41 54 53 48 89 FB 48 83 EC ? 8B 57 78 48 89 07 85 D2");
+                    itemViewDestructor = handle => destructor.Invoke(handle);
+                }
+                else
+                {
+                    throw new PlatformNotSupportedException("CEconItemView destruction requires Windows or Linux");
+                }
+
+                // CEconItemViewConstructor
                 itemViewConstructor = new MemoryFunctionWithReturn<nint, nint>(
                     RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-                        ? "55 48 8D 05 ? ? ? ? 66 0F EF C0 48 89 E5 41 57 45 31 FF"
+                        ? "55 48 8D 05 ? ? ? ? 66 0F EF C0 48 89 E5 41 57 41 56 4C 8D 35 ? ? ? ? 41 55 41 54 45 31 E4"
                         : "48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 41 54 41 55 41 56 41 57 48 83 EC ? 48 8B F9 48 8D 05");
             }
             catch (Exception exception)
             {
+                itemViewConstructor = null;
+                itemViewDestructor = null;
                 Logger.LogError(
                     exception,
-                    "[BotRandomizer] CEconItemView constructor signature failed; weapon cosmetics disabled");
+                    "[BotRandomizer] CEconItemView lifetime signatures failed; weapon cosmetics disabled");
             }
         }
-        _weaponItemViews = new WeaponItemViewStore(itemViewConstructor, writer, Logger);
+        _weaponItemViews = new WeaponItemViewStore(itemViewConstructor, itemViewDestructor, writer, Logger);
     }
 
     private void OnMapStart(string mapName)
@@ -164,10 +193,10 @@ public sealed class BotRandomizerPlugin : BasePlugin
         // Keep constructed item-view storage alive across map transitions. Each view is
         // fully overwritten before reuse and is freed only at slot teardown or unload.
         _applicator?.Reset();
-        foreach (var model in RandomizerAssets.CounterTerroristModels)
-            Server.PrecacheModel(model);
-        foreach (var model in RandomizerAssets.TerroristModels)
-            Server.PrecacheModel(model);
+        foreach (var agent in RandomizerAssets.CounterTerroristAgents)
+            Server.PrecacheModel(agent.ModelPath);
+        foreach (var agent in RandomizerAssets.TerroristAgents)
+            Server.PrecacheModel(agent.ModelPath);
     }
 
     private void OnClientDisconnect(int playerSlot)
@@ -182,6 +211,7 @@ public sealed class BotRandomizerPlugin : BasePlugin
     {
         foreach (var player in Utilities.GetPlayers())
             ConsumePendingReroll(player);
+        Server.NextFrame(ApplyIntroAgents);
         return HookResult.Continue;
     }
 
@@ -320,6 +350,88 @@ public sealed class BotRandomizerPlugin : BasePlugin
     private void PrunePendingGroundKnives()
         => _pendingGroundKnives.RemoveAll(
             pending => (DateTime.UtcNow - pending.CreatedAt).TotalSeconds > 3.0);
+
+    // Updates both teams only while the game is preparing the team intro
+    private void ApplyIntroAgents()
+    {
+        var gameRules = Utilities
+            .FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules")
+            .FirstOrDefault()
+            ?.GameRules;
+
+        if (gameRules is null || !gameRules.TeamIntroPeriod)
+            return;
+
+        ApplyIntroAgentsForTeam(
+            "team_intro_counterterrorist",
+            RandomizerAssets.CounterTerroristTeam,
+            gameRules.CTTeamIntroVariant);
+        ApplyIntroAgentsForTeam(
+            "team_intro_terrorist",
+            RandomizerAssets.TerroristTeam,
+            gameRules.TTeamIntroVariant);
+    }
+
+    // Matches bot controllers to active intro positions and publishes their agent items
+    private void ApplyIntroAgentsForTeam(string designerName, byte team, int introVariant)
+    {
+        var teamPlayers = Utilities.GetPlayers()
+            .Where(player => player.IsValid && player.TeamNum == team)
+            .OrderBy(player => player.Slot)
+            .ToList();
+        var bots = teamPlayers
+            .Where(player => player is { IsBot: true, IsHLTV: false })
+            .ToList();
+
+        if (bots.Count == 0)
+            return;
+
+        var previews = Utilities
+            .FindAllEntitiesByDesignerName<CCSGO_TeamPreviewCharacterPosition>(designerName)
+            .Where(preview => preview.IsValid && preview.Variant == introVariant)
+            .OrderBy(preview => preview.Ordinal)
+            .Take(teamPlayers.Count)
+            .ToList();
+        var unmatchedBots = new List<CCSPlayerController>(bots);
+        var unmatchedPreviews = new List<CCSGO_TeamPreviewCharacterPosition>(previews);
+
+        foreach (var bot in bots.Where(bot => bot.SteamID != 0))
+        {
+            var preview = unmatchedPreviews.FirstOrDefault(candidate => candidate.Xuid == bot.SteamID);
+            if (preview is null)
+                continue;
+
+            ApplyIntroAgent(preview, bot);
+            unmatchedBots.Remove(bot);
+            unmatchedPreviews.Remove(preview);
+        }
+
+        var botPreviews = unmatchedPreviews
+            .Where(preview => preview.Xuid == 0)
+            .OrderBy(preview => preview.Ordinal)
+            .ToList();
+        var pairCount = Math.Min(unmatchedBots.Count, botPreviews.Count);
+
+        for (var i = 0; i < pairCount; i++)
+            ApplyIntroAgent(botPreviews[i], unmatchedBots[i]);
+    }
+
+    private void ApplyIntroAgent(
+        CCSGO_TeamPreviewCharacterPosition preview,
+        CCSPlayerController bot)
+    {
+        var state = GetOrCreateState(bot);
+        if (state is null)
+            return;
+
+        // Publishes the very agent this bot's pawn is given at spawn, so the intro and the
+        // in-game model always match.
+        preview.AgentItem.ItemDefinitionIndex = state.Loadout.AgentDefIndex;
+        Utilities.SetStateChanged(
+            preview,
+            "CCSGO_TeamPreviewCharacterPosition",
+            "m_agentItem");
+    }
 
     private HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
     {

@@ -1,6 +1,6 @@
 # Smarter-Bot without damage-triggered smoke reveal
 
-Based on ed0ard/CS2-Smarter-Bot v1.10.4, commit e8c74af3bd2465478d6d07742f25ce53f4302bc7.
+Based on ed0ard/CS2-Smarter-Bot v1.10.5, commit 6b5781f85391816c08154a9c1d5b5dd6e898a2f5.
 
 Remove only the player_hurt handler registration and its damage-triggered smoke reveal code. Damaging a bot no longer adds or refreshes the attacker's global smoke reveal. Bomb-defuse reveal cycles and other bot behavior are preserved.
 
