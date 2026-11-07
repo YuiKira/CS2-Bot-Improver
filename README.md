@@ -40,7 +40,7 @@ Download the package for your operating system from the **[latest release](https
 > [!NOTE]
 > Running a dedicated server that is not only for bot matches?  
 On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve the standard game rules.
-2. Move **Panel v1.4.4.exe** somewhere convenient.
+2. Move **Panel.exe** somewhere convenient.
 
    <img width="128" height="128" alt="CS2 Bot Improver Panel application icon" src="https://github.com/user-attachments/assets/7271dc7d-2436-484b-8359-6531f4abd710" />
 
@@ -52,7 +52,7 @@ On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve t
 
    <img width="540" height="181" alt="Copying the Windows package files into game/csgo" src="https://github.com/user-attachments/assets/6a8645fc-78e7-4f3a-92d3-5d1b6d913918" />
 
-5. Open `Panel v1.4.4.exe`, select **Bot Mode**, then click **Launch CS2**.
+5. Open `Panel.exe`, select **Bot Mode**, then click **Launch CS2**.
 
    <img width="339" height="129" alt="Selecting Bot Mode and launching CS2 from the Panel" src="https://github.com/user-attachments/assets/dc806991-c940-43cf-a614-f49012fae4a7" />
 
@@ -86,7 +86,7 @@ On Windows, please download **CS2BotImprover_rules_unchanged.zip** to preserve t
 
 ### Nades
 
-R3 now incorporates the official 1.4.7 Windows package, including Panel 1.4.7, BotVision 0.4.0 and Smarter-Bot 1.10.5 fixes, while preserving the custom skins and map features.
+R3 now incorporates the official 1.4.8 Windows package, including Panel.exe, BotController 0.9.0, BotHider 0.7.0 and Smarter-Bot 1.10.6 fixes, while preserving the custom skins and map features.
 
 In the corrected R3 package, only bot HE grenades are blocked. Flashbangs, smoke, molotovs/incendiaries and decoys retain upstream behavior. Human grenades are unaffected. The default plugin mode is normal. Bots at all difficulties (Low, Medium and High) use a runtime notice gate: Pro +100 ms and Rank +40 ms. Damage-triggered smoke reveal is disabled, and bullet smoke tunnels last 2 seconds. Run bot_reaction_status to verify the active gate and observed wait.
 

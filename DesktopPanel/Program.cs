@@ -109,7 +109,7 @@ internal sealed class MainForm : Form
                         ["root"] = _selectedRoot,
                         ["config"] = ReadConfig(_selectedRoot),
                         ["status"] = GetInstallationStatus(_selectedRoot),
-                        ["original_panel_available"] = File.Exists(Path.Combine(_appDirectory, "Panel v1.4.7.exe"))
+                        ["original_panel_available"] = File.Exists(Path.Combine(_appDirectory, "Panel.exe"))
                     });
                     break;
                 case "/api/load":
@@ -313,9 +313,9 @@ internal sealed class MainForm : Form
 
     private void LaunchOriginalPanel()
     {
-        var path = Path.Combine(_appDirectory, "Panel v1.4.7.exe");
+        var path = Path.Combine(_appDirectory, "Panel.exe");
         if (!File.Exists(path))
-            throw new FileNotFoundException("没有找到 Panel v1.4.7.exe。", path);
+            throw new FileNotFoundException("没有找到 Panel.exe。", path);
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = _appDirectory });
     }
 
