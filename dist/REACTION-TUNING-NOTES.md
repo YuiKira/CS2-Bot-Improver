@@ -2,6 +2,15 @@
 
 This replaces the original R3 asset under the same release tag. No additional R release is introduced.
 
+## Log-confirmed startup fixes
+
+- Fix BotAI's reaction hook initialization. CounterStrikeSharp returns a native function-wrapper handle, which must not be compared with the engine function's code address. That comparison previously rejected a valid hook, failed BotAI loading and rolled back its patches. Validate the resolved signature and nonzero wrapper separately, and only unhook a successfully installed hook.
+- Defer reaction-profile entity enumeration until game ticks. Plugin capability discovery can happen in the main menu before engine globals exist.
+- Fix the map menu reading player buttons before a pawn or movement services exist, both at player activation and while handling an open menu.
+- BotAI is now `1.8.15-reaction.2`; the map chooser is `1.8.0-startup.1`. Timing amounts, HE filtering, smoke behavior and skin settings are unchanged.
+- Both modules compile with zero warnings/errors. The updated package passes 697 managed API-reference checks, 19 reaction-gate checks, 253 cosmetic checks and 10 grenade-policy checks. These checks do not execute native game hooks.
+- These fix errors observed in supplied logs. They are not a verified fix for the reported low FPS or slow map loading: the user reports those symptoms also occur with CounterStrikeSharp disabled. Native-plugin isolation and an actual game test remain necessary. The extra RayTraceImpl initialization error is outside the packaged managed modules and remains unresolved.
+
 ## November 12 compatibility repair for CS2 1.41.9.7
 
 - Replace CounterStrikeSharp 1.0.379 with the official successful CI build 1.0.380-6, from commit `2eb9a57d800b662e1d728188f7441fa0ede8bf57` (run `43213602663`). The game changed its network message interface; the old native runtime can crash while loading a map even without third-party plugins.
@@ -46,7 +55,7 @@ Primary references: [official crash report](https://github.com/roflmuffin/Counte
 
 1. Fully close CS2 before overwriting the installation with the new release-windows.zip from this R3 release. The filename is unchanged; download it again.
 2. Select any difficulty (Low, Medium or High) in the panel, then start CS2. The delay applies to all three.
-3. Original panel is Panel.exe; BotVision should be 0.4.0; the custom skin plugin is 1.6.2-upstream148.1. Plugin versions should be Bot AI 1.8.15-reaction.1 and NadeSystem 1.2.3-nohe.1; Smarter-Bot should be 1.10.6-nohurtreveal.1.
+3. Original panel is Panel.exe; BotVision should be 0.4.0; the custom skin plugin is 1.6.2-upstream148.1. Plugin versions should be Bot AI 1.8.15-reaction.2, map chooser 1.8.0-startup.1 and NadeSystem 1.2.3-nohe.1; Smarter-Bot should be 1.10.6-nohurtreveal.1.
 4. Run bot_reaction_status after an encounter. It reports hook=active, difficulty=all, profileAPI=ready, held/released counts and observed notice hold in milliseconds. If inactive/pending, or counts remain zero after combat, report that output; a loaded configuration alone is not proof of active timing.
 5. bot_nades should report normal. If an older console/config command set it to off, use bot_nades normal. HE stays blocked in every mode.
 

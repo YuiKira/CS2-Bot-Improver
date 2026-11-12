@@ -38,7 +38,7 @@ namespace MapChooser;
 public class MapChooser : BasePlugin, IPluginConfig<MCConfig>
 {
     public override string ModuleName => "GG1_MapChooser";
-    public override string ModuleVersion => "v1.8.0";
+    public override string ModuleVersion => "v1.8.0-startup.1";
     public override string ModuleAuthor => "Sergey";
     public override string ModuleDescription => "Map chooser, voting, rtv, nominate, etc.";
     public MCCoreAPI MCCoreAPI { get; set; } = null!;
@@ -4692,7 +4692,8 @@ public class WASDMenu
                 Players[@event.Userid.Slot] = new WasdMenuPlayer(_plugin)
                 {
                     player = @event.Userid,
-                    Buttons = @event.Userid.Buttons,
+                    // player_activate can precede pawn/movement creation.
+                    Buttons = TryGetButtons(@event.Userid, out var buttons) ? buttons : 0,
                     Localizer = _plugin._localizer
                 };
                 Players[@event.Userid.Slot].UpdateLocalization();
@@ -4716,7 +4717,7 @@ public class WASDMenu
                     Players[pl.Slot] = new WasdMenuPlayer(_plugin)
                     {
                         player = pl,
-                        Buttons = pl.Buttons
+                        Buttons = TryGetButtons(pl, out var buttons) ? buttons : 0
                     };
                     Players[pl.Slot].UpdateLocalization();
                }
@@ -4734,6 +4735,16 @@ public class WASDMenu
             player.UpdateCenterHtml();
         }
     }
+    private static bool TryGetButtons(CCSPlayerController? controller, out PlayerButtons buttons)
+    {
+        buttons = 0;
+        if (controller?.IsValid != true) return false;
+        var pawn = controller.Pawn.Value;
+        if (pawn?.IsValid != true || pawn.MovementServices is not { } movement)
+            return false;
+        buttons = (PlayerButtons)movement.Buttons.ButtonStates[0];
+        return true;
+    }
     public void OnTick()
     {
 /*        if (Plugin.gameRules == null)
@@ -4747,8 +4758,8 @@ public class WASDMenu
         DateTime now = DateTime.Now;
         foreach (var player in Players.Values.Where(p => p.MainMenu != null))
         {
-            var controller = player.player!;       
-            PlayerButtons currentButtons = controller.Buttons;
+            var controller = player.player;
+            if (!TryGetButtons(controller, out var currentButtons)) continue;
 
             if (!ButtonHoldState.TryGetValue(controller.Slot, out var holdState))
             {

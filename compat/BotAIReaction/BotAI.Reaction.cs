@@ -12,6 +12,7 @@ public partial class BotAI
 {
     private readonly ReactionGate _reactionGate = new();
     private MemoryFunctionWithReturn<nint, nint, byte, bool>? _noticeFunction;
+    private bool _reactionHooked;
     private IBotControllerApi? _reactionApi;
     private readonly Dictionary<nint, (int Slot, string Name, int ExtraMs, float ProfileReaction)> _reactionBots = new();
     private string _reactionError = "";
@@ -24,10 +25,18 @@ public partial class BotAI
         if (address == 0)
             throw new InvalidOperationException("Reaction delay cannot load: IsNoticable signature not found. No reaction delay is claimed.");
         var definition = (_isLinux ? LinuxPatchDefinitions.All : WindowsPatchDefinitions.All)["IsNoticable_AlwaysTrue"];
-        _noticeFunction = new MemoryFunctionWithReturn<nint, nint, byte, bool>(definition.signature);
-        if (_noticeFunction.Handle != address)
-            throw new InvalidOperationException("Reaction notice hook resolved to an unexpected address.");
+        // BaseMemoryFunction.Handle points to CSS's ValveFunction wrapper, not
+        // server.dll's code. Comparing it with FindSignature always rejects a
+        // valid hook. Resolve the same signature/module explicitly, then only
+        // validate the wrapper handle for successful construction.
+        string module = Common.GameUtils.GetModulePath("server");
+        if (NativeAPI.FindSignature(module, definition.signature) + definition.patchOffset != address)
+            throw new InvalidOperationException("Reaction notice signature changed during initialization.");
+        _noticeFunction = new MemoryFunctionWithReturn<nint, nint, byte, bool>(definition.signature, module);
+        if (_noticeFunction.Handle == 0)
+            throw new InvalidOperationException("Reaction notice function wrapper could not be created.");
         _noticeFunction.Hook(OnNoticeEnemy, HookMode.Pre);
+        _reactionHooked = true;
         RegisterListener<Listeners.OnTick>(RefreshReactionBots);
         RegisterListener<Listeners.OnMapStart>(_ => ResetReactionState());
         RegisterEventHandler<EventRoundStart>((_, _) => { ResetReactionState(); return HookResult.Continue; });
@@ -37,11 +46,13 @@ public partial class BotAI
 
     public override void OnAllPluginsLoaded(bool hotReload)
     {
+        if (!_reactionHooked) return;
         try
         {
             _reactionApi = new PluginCapability<IBotControllerApi>("botcontroller:api").Get();
             if (_reactionApi == null) throw new InvalidOperationException("botcontroller:api unavailable");
-            RefreshReactionBots();
+            // The main menu can load plugins before global variables/entities
+            // exist. The registered tick listener populates profiles in-game.
         }
         catch (Exception ex)
         {
@@ -52,6 +63,7 @@ public partial class BotAI
 
     private void RefreshReactionBots()
     {
+        if (!_reactionHooked) return;
         foreach (var player in Utilities.GetPlayers())
         {
             if (!player.IsValid || !player.IsBot || !player.PawnIsAlive || player.HasBeenControlledByPlayerThisRound) continue;
@@ -119,7 +131,7 @@ public partial class BotAI
 
     private void PrintReactionStatus(CCSPlayerController? player, CommandInfo command)
     {
-        command.ReplyToCommand($"[Reaction] r3-all-difficulties; hook={(_noticeFunction != null ? "active" : "FAILED")}; difficulty=all; profileAPI={(_reactionApi != null ? "ready" : "pending/fallback +100ms")}; calls={_noticeCalls}; held={_heldCalls}; released={_releasedEncounters}; last={_lastBot} {_lastWaitMs:F1}ms; Pro=+100ms Rank=+40ms");
+        command.ReplyToCommand($"[Reaction] r3-all-difficulties; hook={(_reactionHooked ? "active" : "FAILED")}; difficulty=all; profileAPI={(_reactionApi != null ? "ready" : "pending/fallback +100ms")}; calls={_noticeCalls}; held={_heldCalls}; released={_releasedEncounters}; last={_lastBot} {_lastWaitMs:F1}ms; Pro=+100ms Rank=+40ms");
         foreach (var bot in _reactionBots.Values)
             command.ReplyToCommand($"[Reaction] slot={bot.Slot} {bot.Name}: extra={bot.ExtraMs}ms; loaded profile ReactionTime={bot.ProfileReaction:F4}s");
         if (_reactionError.Length > 0) command.ReplyToCommand("[Reaction] " + _reactionError);
@@ -127,7 +139,8 @@ public partial class BotAI
 
     private void UninstallReactionGate()
     {
-        _noticeFunction?.Unhook(OnNoticeEnemy, HookMode.Pre);
+        if (_reactionHooked) _noticeFunction?.Unhook(OnNoticeEnemy, HookMode.Pre);
+        _reactionHooked = false;
         _noticeFunction = null;
         ResetReactionState();
     }
