@@ -2,9 +2,19 @@
 
 This replaces the original R3 asset under the same release tag. No additional R release is introduced.
 
+## November 12 compatibility repair for CS2 1.41.9.7
+
+- Replace CounterStrikeSharp 1.0.379 with the official successful CI build 1.0.380-6, from commit `2eb9a57d800b662e1d728188f7441fa0ede8bf57` (run `43213602663`). The game changed its network message interface; the old native runtime can crash while loading a map even without third-party plugins.
+- Use the matching official Windows native DLL, managed API publish output and gamedata. Preserve the installed runtime, user configuration, skins, map UI and all custom BOT tuning.
+- Keep BotAI's original-byte validation enabled. The optional bombsite-search redirection no longer matches this game build and is safely skipped; no unverified relative-call displacement is installed. Other patch signatures match the pinned November 11 signature report. Signature checks alone do not prove complete runtime compatibility.
+- This is an official CI compatibility build, not a new formal CounterStrikeSharp release. Its build and managed tests passed. This package still needs an actual CS2 map/join test; no game is available in the build environment.
+- Package checks passed: 694 direct managed API references, 253 cosmetic cases, 19 reaction-gate cases and 10 compiled grenade-policy cases. A full archive comparison preserves 591 existing files byte-for-byte; changed files are limited to the CSS overlay and release metadata/notes.
+
+Primary references: [official crash report](https://github.com/roflmuffin/CounterStrikeSharp/issues/1491), [official compatibility fix](https://github.com/roflmuffin/CounterStrikeSharp/commit/2eb9a57d800b662e1d728188f7441fa0ede8bf57), [successful official CI run](https://github.com/roflmuffin/CounterStrikeSharp/actions/runs/43213602663), and [pinned BOT signature reports](https://github.com/XBribo/cs2-bot-signatures/tree/194bade8093a8bf83dd8efdcbb8ef19cab071db4).
+
 ## Official 1.4.8 integration
 
-- Use the official 1.4.8 Windows package as the base, including CounterStrikeSharp 1.0.379, BotController 0.9.0, BotHider 0.7.0, current native signatures, and Panel.exe.
+- Use the official 1.4.8 Windows package as the base, with the CounterStrikeSharp compatibility overlay above, BotController 0.9.0, BotHider 0.7.0, and Panel.exe.
 - Include BotAI 1.8.15's bombsite patch correction while preserving all-difficulty reaction holds.
 - Include the published Smarter-Bot 1.10.6 combat-crouch fix, excluding knives and tasers, while preserving the ammo-selection fix and disabling damage-triggered smoke reveal.
 - Update the cosmetic catalog with the new charm from BotRandomizer 1.3.5. Custom skin/knife choices, seeds, wear, StatTrak, stickers and ground-knife behavior remain available.
