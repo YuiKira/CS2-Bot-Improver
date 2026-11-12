@@ -2,6 +2,13 @@
 
 This replaces the original R3 asset under the same release tag. No additional R release is introduced.
 
+## November 12 game configuration synchronization
+
+- Refresh all three bundled gameinfo.gi files against the game-file snapshot at SteamTracking/GameTracking-CS2 commit `82e2b9d62cc97f1358c68a220a4a392c9e41c509`, from November 12 in China time. The previous online backup exactly matched the pre-update game file.
+- Include `ForceUseBuildVersion 1`, the new network receive limits and `cl_interp_parallel 1`. Generate BOT mode by adding only the existing profile and Metamod SearchPaths entries to that updated baseline; preserve all plugin binaries, profiles, skins, maps and tuning.
+- This corrects an omitted game configuration update. Its effect on low FPS and map loading has not been verified in-game; do not treat it as a confirmed performance fix. The user reports that disabling CSS and the three native BOT plugins did not improve performance.
+- Restore temporarily renamed .vdf files before testing this package. Fully exit CS2, install the complete package and test once with the same settings. For a clean baseline if symptoms remain, back up the current gameinfo.gi and user settings, then use Steam file verification to obtain the current Valve gameinfo.gi and launch CS2 directly without the BOT panel re-enabling mod paths. Do not copy an older online backup over the verified file.
+
 ## Log-confirmed startup fixes
 
 - Fix BotAI's reaction hook initialization. CounterStrikeSharp returns a native function-wrapper handle, which must not be compared with the engine function's code address. That comparison previously rejected a valid hook, failed BotAI loading and rolled back its patches. Validate the resolved signature and nonzero wrapper separately, and only unhook a successfully installed hook.
