@@ -58,6 +58,14 @@ internal static class LinuxPatchDefinitions
             patchOffset:      17
         ),
 
+        // Upstream v1.8.16: lower ReloadCheck's ammo ratio from 0.6f to 0.2f.
+        ["ReloadCheck_LowerAmmoThreshold"] = (
+            signature:        "66 0F EF C9 F3 0F 10 45 CC F3 0F 2A C8 F3 0F 5E C1 F3 0F 10 0D ? ? ? ? 0F 2F C8 0F 82",
+            patch:            "F3 0F 10 45 CC F3 0F 2A C8 F3 0F 5E C1 B8 CD CC 4C 3E 66 0F 6E C8 0F 1F 00",
+            expectedOriginal: "66 0F EF C9 F3 0F 10 45 CC F3 0F 2A C8 F3 0F 5E C1 F3 0F 10 0D ? ? ? ?",
+            patchOffset:      0
+        ),
+
         ["PlantBombLookAtPriorityLow"] = (
             signature:        "48 8D 55 C8 4C 89 E7 45 31 C9 F3 0F 10 40 08 45 31 C0 B9 02 00 00 00 48 89 5D C8 F3 0F 10 0D ? ? ? ? 48 8D 35 ? ? ? ? F3 0F 11 45 D0",
             patch:            "B9 00 00 00 00",
@@ -280,8 +288,8 @@ internal static class LinuxPatchDefinitions
         // Build-specific rel32: keep expectedOriginal exact and recheck both callees.
         ["TBot_BombsiteSearch_UseKnownPlantedSite"] = (
             signature:        "48 8B BB 00 5E 00 00 E8 ? ? ? ? 4C 89 F7 E8 ? ? ? ?",
-            patch:            "E8 3C B1 F6 FF",   // call GetPlantedBombsite
-            expectedOriginal: "E8 2C B4 F6 FF",   // call GetNextBombsiteToSearch
+            patch:            "E8 1C B1 F6 FF",   // call GetPlantedBombsite
+            expectedOriginal: "E8 0C B4 F6 FF",   // call GetNextBombsiteToSearch
             patchOffset:      15
         ),
 

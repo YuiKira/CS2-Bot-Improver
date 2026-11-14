@@ -2,6 +2,16 @@
 
 This replaces the original R3 asset under the same release tag. No additional R release is introduced.
 
+## November 14 integration of original 1.4.9
+
+- Use the original 1.4.9 Windows package as the base, including its updated Metamod 2.0.0-dev+1490, CounterStrikeSharp 1.0.380, BotHider 0.7.1, updated panel and retake behavior trees.
+- Merge BotAI release v1.8.16's Windows/Linux bombsite-search patch correction and reload-threshold change (0.6 to 0.2). Keep the custom reaction hook and its startup validation fix. The custom module is now `1.8.16-reaction.1`.
+- Apply CounterStrikeSharp's published post-1.0.380 Windows nav-mesh gamedata correction from commit `c1b3d1f386933d9cd9d9cb736e126cc93731374e`. This is a gamedata-only update over the released native runtime.
+- Preserve the custom skin/map UI and voting, Pro +100 ms and other templates +40 ms at all difficulties, HE-only filtering, no damage-triggered smoke reveal, and 2-second bullet smoke holes. Each new difficulty VPK includes the original retake trees while retaining byte-identical botprofile.db values, so no profile delay is added twice.
+- Retain the November 12 gameinfo baseline and startup/menu guards. Signature reports are pinned to `803171a8047012f80b245c63987bec1bf5f446c6`; report validation is not a substitute for an in-game test.
+- Verification passed: 41 patch definitions per platform match upstream release parameters, all eight pinned BOT reports contain no failed entries, 697 packaged managed API references resolve, and 253 cosmetic, 19 reaction-gate and 10 HE/non-HE policy cases pass. Gameinfo mode generation and archive/hash comparisons pass. This environment cannot run a CS2 match or measure client FPS.
+- This update does not claim to resolve the separately reported machine-specific low FPS. The affected user's uninstall test linked that symptom to the mod installation, but the responsible component or interaction has not been established. Extra InventorySimulator, RayTraceImpl and CS2_ExecAfter plugins are not included or automatically removed.
+
 ## November 12 game configuration synchronization
 
 - Refresh all three bundled gameinfo.gi files against the game-file snapshot at SteamTracking/GameTracking-CS2 commit `82e2b9d62cc97f1358c68a220a4a392c9e41c509`, from November 12 in China time. The previous online backup exactly matched the pre-update game file.
@@ -62,7 +72,7 @@ Primary references: [official crash report](https://github.com/roflmuffin/Counte
 
 1. Fully close CS2 before overwriting the installation with the new release-windows.zip from this R3 release. The filename is unchanged; download it again.
 2. Select any difficulty (Low, Medium or High) in the panel, then start CS2. The delay applies to all three.
-3. Original panel is Panel.exe; BotVision should be 0.4.0; the custom skin plugin is 1.6.2-upstream148.1. Plugin versions should be Bot AI 1.8.15-reaction.2, map chooser 1.8.0-startup.1 and NadeSystem 1.2.3-nohe.1; Smarter-Bot should be 1.10.6-nohurtreveal.1.
+3. Original panel is Panel.exe; BotVision should be 0.4.0; the custom skin plugin remains 1.6.2-upstream148.1. Plugin versions should be Bot AI 1.8.16-reaction.1, map chooser 1.8.0-startup.1 and NadeSystem 1.2.3-nohe.1; Smarter-Bot should be 1.10.6-nohurtreveal.1.
 4. Run bot_reaction_status after an encounter. It reports hook=active, difficulty=all, profileAPI=ready, held/released counts and observed notice hold in milliseconds. If inactive/pending, or counts remain zero after combat, report that output; a loaded configuration alone is not proof of active timing.
 5. bot_nades should report normal. If an older console/config command set it to off, use bot_nades normal. HE stays blocked in every mode.
 
