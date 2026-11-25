@@ -1,15 +1,15 @@
-# R3 Corrected: Runtime Reaction Delay, Smoke Tuning and HE Only Disabled
+# R4: Upstream 1.4.10 Compatibility Update
 
-This replaces the original R3 asset under the same release tag. No additional R release is introduced.
+This is a new R4 release based on upstream 1.4.10. R3 remains available unchanged.
 
 ## November 25 integration of original 1.4.10
 
 - Base the package on official Windows release 1.4.10, including CounterStrikeSharp 1.0.381 and its current native runtime, the November 23 crash fixes in BotController 0.9.2 and BotHider 0.7.2, and the updated Panel.exe.
 - Port the custom reaction-delay hook into BotAI 1.9.1's new gamedata-driven patch loader. Use the official Windows and Linux patch signatures, safer memory protection handling, updated spawn guards, and upstream gamedata; keep Pro +100 ms and other templates +40 ms at every difficulty. The rebuilt custom BotAI version is `1.9.1-reaction.1` and targets CSS API 1.0.381.
 - Update the BotRandomizer cosmetic catalog with 773 additional stickers and 8 music kits. Extend the custom equipment page's sticker list to include new IDs while preserving all existing translated entries. Keep the custom per-user loadout config out of the package so upgrades do not reset selections.
-- Merge upstream Rush, Retake, Deathmatch, Casual and Armsrace configs and behavior trees. Keep the custom `bot_nades normal` command in the three BOT mode configs, block BOT HE only, retain 2-second bullet smoke holes, and keep the updated R3 gameinfo files.
-- The original retake botprofile values are byte-identical to R3 profiles, so the reaction delay does not stack with profile changes. Preserve the custom map voter, equipment page, damage-reveal suppression and original launcher.
-- Validation covers both platform patch definitions against BotAI 1.9.1's bundled gamedata, API references, the two plugin startup fixes, cosmetic and reaction behavior, HE-only policy, R3 profile values and package hashes. No in-game test is available here; the previous machine-specific FPS issue remains unconfirmed.
+- Merge upstream Rush, Retake, Deathmatch, Casual and Armsrace configs and behavior trees. Keep the custom `bot_nades normal` command in the three BOT mode configs, block BOT HE only, retain 2-second bullet smoke holes, and keep the current gameinfo files.
+- The original retake botprofile values are byte-identical to the previous R3 profiles, so the reaction delay does not stack with profile changes. Preserve the custom map voter, equipment page, damage-reveal suppression and original launcher.
+- Validation covers both platform patch definitions against BotAI 1.9.1's bundled gamedata, API references, the two plugin startup fixes, cosmetic and reaction behavior, HE-only policy, profile values and package hashes. No in-game test is available here; the previous machine-specific FPS issue remains unconfirmed.
 
 ## November 14 integration of original 1.4.9
 
@@ -55,7 +55,7 @@ Primary references: [official crash report](https://github.com/roflmuffin/Counte
 - Update the cosmetic catalog with the new charm from BotRandomizer 1.3.5. Custom skin/knife choices, seeds, wear, StatTrak, stickers and ground-knife behavior remain available.
 - Keep map voting and the custom equipment UI; the tools launcher now opens Panel.exe.
 - Merge original retake settings, including 5-second freeze time and 3-second round restart delay.
-- Continue replacing the existing R3 asset and tag; no additional R release is introduced.
+- R3 remains available as a separate release.
 
 ## Bot reaction at all difficulties
 
@@ -79,7 +79,7 @@ Primary references: [official crash report](https://github.com/roflmuffin/Counte
 
 ## Install and verify
 
-1. Fully close CS2 before overwriting the installation with the new release-windows.zip from this R3 release. The filename is unchanged; download it again.
+1. Fully close CS2 before overwriting the installation with the `release-windows.zip` from this R4 release. The filename is unchanged; download it again.
 2. Select any difficulty (Low, Medium or High) in the panel, then start CS2. The delay applies to all three.
 3. Original panel is Panel.exe; CSS is 1.0.381 and BotVision should be 0.4.0; the custom skin plugin remains 1.6.2-upstream148.1. Plugin versions should be Bot AI 1.9.1-reaction.1, map chooser 1.8.0-startup.1 and NadeSystem 1.2.3-nohe.1; Smarter-Bot should be 1.10.6-nohurtreveal.1.
 4. Run bot_reaction_status after an encounter. It reports hook=active, difficulty=all, profileAPI=ready, held/released counts and observed notice hold in milliseconds. If inactive/pending, or counts remain zero after combat, report that output; a loaded configuration alone is not proof of active timing.
