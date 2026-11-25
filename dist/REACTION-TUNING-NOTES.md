@@ -2,6 +2,15 @@
 
 This replaces the original R3 asset under the same release tag. No additional R release is introduced.
 
+## November 25 integration of original 1.4.10
+
+- Base the package on official Windows release 1.4.10, including CounterStrikeSharp 1.0.381 and its current native runtime, the November 23 crash fixes in BotController 0.9.2 and BotHider 0.7.2, and the updated Panel.exe.
+- Port the custom reaction-delay hook into BotAI 1.9.1's new gamedata-driven patch loader. Use the official Windows and Linux patch signatures, safer memory protection handling, updated spawn guards, and upstream gamedata; keep Pro +100 ms and other templates +40 ms at every difficulty. The rebuilt custom BotAI version is `1.9.1-reaction.1` and targets CSS API 1.0.381.
+- Update the BotRandomizer cosmetic catalog with 773 additional stickers and 8 music kits. Extend the custom equipment page's sticker list to include new IDs while preserving all existing translated entries. Keep the custom per-user loadout config out of the package so upgrades do not reset selections.
+- Merge upstream Rush, Retake, Deathmatch, Casual and Armsrace configs and behavior trees. Keep the custom `bot_nades normal` command in the three BOT mode configs, block BOT HE only, retain 2-second bullet smoke holes, and keep the updated R3 gameinfo files.
+- The original retake botprofile values are byte-identical to R3 profiles, so the reaction delay does not stack with profile changes. Preserve the custom map voter, equipment page, damage-reveal suppression and original launcher.
+- Validation covers both platform patch definitions against BotAI 1.9.1's bundled gamedata, API references, the two plugin startup fixes, cosmetic and reaction behavior, HE-only policy, R3 profile values and package hashes. No in-game test is available here; the previous machine-specific FPS issue remains unconfirmed.
+
 ## November 14 integration of original 1.4.9
 
 - Use the original 1.4.9 Windows package as the base, including its updated Metamod 2.0.0-dev+1490, CounterStrikeSharp 1.0.380, BotHider 0.7.1, updated panel and retake behavior trees.
@@ -72,8 +81,8 @@ Primary references: [official crash report](https://github.com/roflmuffin/Counte
 
 1. Fully close CS2 before overwriting the installation with the new release-windows.zip from this R3 release. The filename is unchanged; download it again.
 2. Select any difficulty (Low, Medium or High) in the panel, then start CS2. The delay applies to all three.
-3. Original panel is Panel.exe; BotVision should be 0.4.0; the custom skin plugin remains 1.6.2-upstream148.1. Plugin versions should be Bot AI 1.8.16-reaction.1, map chooser 1.8.0-startup.1 and NadeSystem 1.2.3-nohe.1; Smarter-Bot should be 1.10.6-nohurtreveal.1.
+3. Original panel is Panel.exe; CSS is 1.0.381 and BotVision should be 0.4.0; the custom skin plugin remains 1.6.2-upstream148.1. Plugin versions should be Bot AI 1.9.1-reaction.1, map chooser 1.8.0-startup.1 and NadeSystem 1.2.3-nohe.1; Smarter-Bot should be 1.10.6-nohurtreveal.1.
 4. Run bot_reaction_status after an encounter. It reports hook=active, difficulty=all, profileAPI=ready, held/released counts and observed notice hold in milliseconds. If inactive/pending, or counts remain zero after combat, report that output; a loaded configuration alone is not proof of active timing.
 5. bot_nades should report normal. If an older console/config command set it to off, use bot_nades normal. HE stays blocked in every mode.
 
-Verification: 253 cosmetic merge checks, 19 timing/state checks, 10 compiled HE/non-HE policy checks, packaged managed API references, gameinfo mode round-trip/layer validation, and full package hash/CRC checks. Original files outside the explicit custom overrides and the existing custom UI/map files are checked byte-for-byte. This environment cannot run a CS2 match; runtime status is provided for in-game verification.
+Verification: BotAI 1.9.1 reaction build succeeds without warnings; 710 managed CSS/Bot/map API references resolve against the package; 253 cosmetic, 19 reaction-gate and 10 HE/non-HE policy checks pass; the gameinfo mode round-trip passes; all 11,917 runtime sticker IDs are selectable in the custom UI; and the archive CRC and component hash checks pass. Original files outside the explicit custom overrides and the custom UI/map files are checked byte-for-byte. This environment cannot run a CS2 match, so runtime compatibility and the separate low-FPS report still need in-game verification.

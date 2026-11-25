@@ -4,6 +4,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Capabilities;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
+using Common;
 using Microsoft.Extensions.Logging;
 
 namespace BotAI;
@@ -20,19 +21,18 @@ public partial class BotAI
     private double _lastWaitMs;
     private string _lastBot = "none";
 
-    private void InstallReactionGate(nint address)
+    private void InstallReactionGate(nint address, string signature)
     {
         if (address == 0)
             throw new InvalidOperationException("Reaction delay cannot load: IsNoticable signature not found. No reaction delay is claimed.");
-        var definition = (_isLinux ? LinuxPatchDefinitions.All : WindowsPatchDefinitions.All)["IsNoticable_AlwaysTrue"];
         // BaseMemoryFunction.Handle points to CSS's ValveFunction wrapper, not
         // server.dll's code. Comparing it with FindSignature always rejects a
         // valid hook. Resolve the same signature/module explicitly, then only
         // validate the wrapper handle for successful construction.
-        string module = Common.GameUtils.GetModulePath("server");
-        if (NativeAPI.FindSignature(module, definition.signature) + definition.patchOffset != address)
+        string module = GameUtils.GetModulePath("server");
+        if (NativeAPI.FindSignature(module, signature) != address)
             throw new InvalidOperationException("Reaction notice signature changed during initialization.");
-        _noticeFunction = new MemoryFunctionWithReturn<nint, nint, byte, bool>(definition.signature, module);
+        _noticeFunction = new MemoryFunctionWithReturn<nint, nint, byte, bool>(signature, module);
         if (_noticeFunction.Handle == 0)
             throw new InvalidOperationException("Reaction notice function wrapper could not be created.");
         _noticeFunction.Hook(OnNoticeEnemy, HookMode.Pre);

@@ -1,7 +1,6 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
-using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Memory;
 using CounterStrikeSharp.API.Modules.Utils;
 using Common;
@@ -10,251 +9,164 @@ using System.Runtime.InteropServices;
 
 namespace BotAI;
 
-public record PatchInfo(string Name, nint Address, List<byte> OriginalBytes);
+internal sealed record PatchInfo(string Name, MemoryPatch Site, byte[] OriginalBytes);
 
-public static class BotOffsets
-{
-    // Differs by platform: Windows = 0x5120, Linux  = 0x50F8.
-    public static readonly int m_gameState =
-        RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? 0x50F8 : 0x5120;
-    // Offsets inside CSGameState
-    public const int m_isRoundOver = 0x08;
-    public const int m_bombState = 0x0C;
-    public const int m_plantedBombsite = 0x68;
-
-}
-
-[MinimumApiVersion(304)]
+[MinimumApiVersion(380)]
 public partial class BotAI : BasePlugin
 {
     public override string ModuleName => "Bot AI - Patches";
-    public override string ModuleVersion => "1.8.16-reaction.1";
+    public override string ModuleVersion => "1.9.1-reaction.1";
     public override string ModuleAuthor => "K4ryuu & Austin (updated by ed0ard & XBribo & unicbm & Misaka17032 & AmagiReina)";
     public override string ModuleDescription =>
         "Improve and fix bots' behavior comprehensively";
 
     private readonly List<PatchInfo> _appliedPatches = [];
-    private readonly bool _isLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-
-
 
     public override void Load(bool hotReload)
     {
         Logger.LogInformation("Bot AI Patches loading...");
-        var patchDefinitions = _isLinux ? LinuxPatchDefinitions.All : WindowsPatchDefinitions.All;
-
-        // "<name>_Cave" entries build a code cave that their "<name>" partner then
-        // jumps into. The pair must be applied atomically: if the cave is missing
-        // (e.g. its signature no longer matches after a game update), the partner's
-        // jump lands in unpatched bytes and the server segfaults as soon as a bot
-        // takes that code path.
-        var caveNames = patchDefinitions.Keys.Where(n => n.EndsWith("_Cave")).ToHashSet();
-        var appliedCaves = new HashSet<string>();
-
-        // Phase 1 — resolve every signature BEFORE any write. A cave's signature is
-        // the CC padding the cave patch itself overwrites, so it cannot be re-resolved
-        // once written, and the displacement math below needs both pair addresses.
-        var sites = new Dictionary<string, nint>();
-        foreach (var (name, def) in patchDefinitions)
-        {
-            nint sigAddr = NativeAPI.FindSignature(GameUtils.GetModulePath("server"), def.signature);
-            if (sigAddr == 0) { Logger.LogError($"'{name}': signature not found."); continue; }
-            sites[name] = sigAddr + def.patchOffset;
-        }
-
-        // Phase 2 — compute rel32 fields from the resolved addresses (Linux cave
-        // pairs; no-op elsewhere). A failed fixup marks the entry unappliable so the
-        // pair dies atomically instead of writing a jump with a wrong displacement.
-        var patchBytes = new Dictionary<string, List<byte>>();
-        foreach (var (name, def) in patchDefinitions)
-        {
-            if (!sites.ContainsKey(name)) continue;
-            var bytes = ParseHex(def.patch);
-            if (_isLinux && !LinuxDisplacementFixups.Apply(name, bytes, sites, Logger))
-            {
-                sites.Remove(name);
-                continue;
-            }
-            patchBytes[name] = bytes;
-        }
-
-        // Phase 3 — write caves first, then partners (1.8.8 atomic ordering).
-        foreach (var name in caveNames)
-        {
-            if (sites.TryGetValue(name, out nint addr) && WritePatch(name, addr, patchBytes[name], patchDefinitions[name].expectedOriginal))
-            { appliedCaves.Add(name); Logger.LogInformation($"{name}: applied."); }
-            else Logger.LogError($"{name}: FAILED.");
-        }
-
-        foreach (var name in patchDefinitions.Keys)
-        {
-            if (caveNames.Contains(name) || name == "IsNoticable_AlwaysTrue") continue;
-
-            string caveName = $"{name}_Cave";
-            if (caveNames.Contains(caveName) && !appliedCaves.Contains(caveName))
-            {
-                Logger.LogWarning($"{name}: skipped, its cave partner '{caveName}' did not apply.");
-                continue;
-            }
-
-            bool ok = sites.TryGetValue(name, out nint addr)
-                && WritePatch(name, addr, patchBytes[name], patchDefinitions[name].expectedOriginal);
-            if (ok) Logger.LogInformation($"{name}: applied.");
-            else
-            {
-                Logger.LogError($"{name}: FAILED.");
-                // Roll back the now-orphaned cave so we never leave half a pair behind.
-                if (appliedCaves.Contains(caveName))
-                {
-                    var cave = _appliedPatches.FirstOrDefault(p => p.Name == caveName);
-                    if (cave != null)
-                    {
-                        RestorePatch(cave);
-                        _appliedPatches.Remove(cave);
-                        appliedCaves.Remove(caveName);
-                        Logger.LogWarning($"{caveName}: rolled back, its partner '{name}' did not apply.");
-                    }
-                }
-            }
-        }
-
+        string platform = OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsLinux() ? "linux"
+            : throw new PlatformNotSupportedException("BotAI requires Windows or Linux.");
+        var (offsets, patches) = Gamedata.Load(Path.Combine(ModuleDirectory, "gamedata.json"), platform);
         try
         {
-            InstallReactionGate(sites.GetValueOrDefault("IsNoticable_AlwaysTrue"));
+            var reaction = patches.SingleOrDefault(patch => patch.Name == "IsNoticable_AlwaysTrue")
+                ?? throw new InvalidDataException("Reaction notice definition is missing from BotAI gamedata.");
+            ApplyPatches(patches.Where(patch => patch.Name != reaction.Name).ToArray());
+            nint reactionAddress = NativeAPI.FindSignature(Addresses.ServerPath, reaction.Signature);
+            if (reactionAddress == 0)
+                throw new InvalidOperationException("Reaction notice signature was not found.");
+            InstallReactionGate(checked(reactionAddress + reaction.Offset), reaction.Signature);
+            if (_appliedPatches.Exists(patch => patch.Name == "GameState_Reset"))
+            {
+                RegisterEventHandler<EventPlayerSpawn>((ev, _) =>
+                {
+                    OnPlayerSpawn(ev, offsets);
+                    return HookResult.Continue;
+                });
+            }
+            Logger.LogInformation("Applied {Applied}/{Total} patches.", _appliedPatches.Count, patches.Count);
         }
         catch
         {
             UninstallReactionGate();
-            foreach (var patch in _appliedPatches) RestorePatch(patch);
-            _appliedPatches.Clear();
+            RestoreAppliedPatches();
             throw;
         }
-
-        RegisterEventHandler<EventPlayerSpawn>((@event, info) =>
-        {
-            var player = @event.Userid;
-            if (player?.IsValid != true || !player.IsBot) return HookResult.Continue;
-
-            var pawn = player.PlayerPawn.Value;
-            if (pawn?.IsValid != true
-                || player.Team <= CsTeam.Spectator
-                || !pawn.BotAllowActive)
-                return HookResult.Continue;
-
-            var gameRules = Utilities
-                .FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules")
-                .FirstOrDefault()?.GameRules;
-
-            if (gameRules == null || gameRules.BombPlanted) return HookResult.Continue;
-
-            UpdateBotBombState(pawn, player.PlayerName);
-            return HookResult.Continue;
-        });
-
-        Logger.LogInformation($"Applied {_appliedPatches.Count}/{patchDefinitions.Count} patches.");
     }
 
     public override void Unload(bool hotReload)
     {
-        UninstallReactionGate();
         Logger.LogInformation("Bot AI Patches unloading...");
-        foreach (var patch in _appliedPatches) RestorePatch(patch);
-        _appliedPatches.Clear();
-        Logger.LogInformation("All patches restored.");
+        UninstallReactionGate();
+        RestoreAppliedPatches();
     }
 
-    // ── Patch machinery ───────────────────────────────────────────────────────
-
-    // Write-only: the address is resolved (and displacement fields computed) before
-    // any patch is written — see the phased Load above.
-    private bool WritePatch(string name, nint addr, List<byte> patchBytes, string expectedOriginal)
+    private void ApplyPatches(IReadOnlyList<PatchDefinition> definitions)
     {
-        try
+        // Patches can overwrite bytes used by other signatures.
+        var sites = new List<(PatchDefinition Definition, nint Address)>();
+        string serverPath = Addresses.ServerPath;
+        foreach (var definition in definitions)
         {
-            if (patchBytes.Count == 0 || !IsValid(addr)) return false;
-
-            var origBytes = new List<byte>();
-            for (int i = 0; i < patchBytes.Count; i++)
-                origBytes.Add(Marshal.ReadByte(addr, i));
-
-            if (!ValidateOrig(name, origBytes, expectedOriginal))
+            nint address = NativeAPI.FindSignature(serverPath, definition.Signature);
+            if (address == 0)
             {
-                Logger.LogError($"'{name}': byte mismatch. Expected [{expectedOriginal}] " +
-                                $"got [{string.Join(" ", origBytes.Select(b => $"{b:X2}"))}].");
-                return false;
+                Logger.LogError("'{Patch}': signature not found.", definition.Name);
+                continue;
             }
-
-            if (!MemoryPatch.SetMemAccess(addr, patchBytes.Count)) return false;
-            for (int i = 0; i < patchBytes.Count; i++) Marshal.WriteByte(addr, i, patchBytes[i]);
-
-            _appliedPatches.Add(new PatchInfo(name, addr, origBytes));
-            Logger.LogInformation($"'{name}' patched at 0x{addr:X} ({patchBytes.Count} bytes).");
-            return true;
+            sites.Add((definition, checked(address + definition.Offset)));
         }
-        catch (Exception ex) { Logger.LogError($"'{name}': {ex.Message}"); return false; }
-    }
 
-    private void RestorePatch(PatchInfo p)
-    {
-        try
+        var byAddress = sites.OrderBy(site => site.Address).ToArray();
+        for (int i = 1; i < byAddress.Length; i++)
         {
-            if (!IsValid(p.Address)) return;
-            if (!MemoryPatch.SetMemAccess(p.Address, p.OriginalBytes.Count)) return;
-            for (int i = 0; i < p.OriginalBytes.Count; i++)
-                Marshal.WriteByte(p.Address, i, p.OriginalBytes[i]);
+            var previous = byAddress[i - 1];
+            var current = byAddress[i];
+            if (current.Address < checked(previous.Address + previous.Definition.Patch.Length))
+                throw new InvalidDataException($"Patches '{previous.Definition.Name}' and '{current.Definition.Name}' overlap at 0x{current.Address:X}; no patches written.");
         }
-        catch (Exception ex) { Logger.LogError($"Restore '{p.Name}': {ex.Message}"); }
-    }
 
-    private bool ValidateOrig(string name, List<byte> actual, string expectedHex)
-    {
-        try
+        foreach (var (definition, address) in sites)
         {
-            var tokens = expectedHex.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (actual.Count != tokens.Length) return false;
-            for (int i = 0; i < tokens.Length; i++)
+            try { WritePatch(definition, address); }
+            catch (Exception ex)
             {
-                if (tokens[i] == "?") continue;
-                if (actual[i] != Convert.ToByte(tokens[i], 16)) return false;
+                throw new InvalidOperationException($"Could not apply '{definition.Name}' at 0x{address:X}.", ex);
             }
-            return true;
         }
-        catch { return false; }
     }
 
-    private static bool IsValid(nint addr)
+    private void WritePatch(PatchDefinition definition, nint addr)
     {
-        if (addr == nint.Zero) return false;
-        try { Marshal.ReadByte(addr); return true; }
-        catch { return false; }
+        var (name, _, _, expectedOriginal, patchBytes) = definition;
+        var site = MemoryPatch.Capture(addr, patchBytes.Length);
+        var origBytes = new byte[patchBytes.Length];
+        Marshal.Copy(addr, origBytes, 0, origBytes.Length);
+        if (!MatchesOriginal(origBytes, expectedOriginal))
+        {
+            Logger.LogError("'{Patch}': byte mismatch. Expected [{Expected}] got [{Actual}].", name,
+                Gamedata.FormatPattern(expectedOriginal),
+                Convert.ToHexString(origBytes));
+            return;
+        }
+
+        // A failed write can leave modified bytes.
+        _appliedPatches.Add(new PatchInfo(name, site, origBytes));
+        site.Write(patchBytes);
+        Logger.LogInformation("'{Patch}' patched at 0x{Address:X} ({Length} bytes).", name, addr, patchBytes.Length);
     }
 
-    private static List<byte> ParseHex(string hex) =>
-        [.. hex.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-               .Where(t => t != "?")
-               .Select(t => Convert.ToByte(t, 16))];
-
-    private bool UpdateBotBombState(CCSPlayerPawn pawn, string playerName)
+    private void RestoreAppliedPatches()
     {
+        int total = _appliedPatches.Count;
+        for (int i = total - 1; i >= 0; i--)
+        {
+            var patch = _appliedPatches[i];
+            try
+            {
+                patch.Site.Write(patch.OriginalBytes);
+                _appliedPatches.RemoveAt(i);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Could not fully restore '{Patch}'.", patch.Name);
+            }
+        }
+        if (_appliedPatches.Count == 0)
+            Logger.LogInformation("Restored {Count} patches.", total);
+        else
+            Logger.LogCritical("Restored {Restored}/{Total} patches. Restart the server before reloading BotAI.",
+                total - _appliedPatches.Count, total);
+    }
+
+    private static bool MatchesOriginal(ReadOnlySpan<byte> actual, ReadOnlySpan<byte?> expected)
+    {
+        for (int i = 0; i < expected.Length; i++)
+            if (expected[i] is byte value && actual[i] != value) return false;
+        return true;
+    }
+
+    private void OnPlayerSpawn(EventPlayerSpawn ev, BotOffsets offsets)
+    {
+        var player = ev.Userid;
+        if (player?.IsValid != true || !player.IsBot || player.Team <= CsTeam.Spectator) return;
+        var pawn = player.PlayerPawn.Value;
+        if (pawn?.IsValid != true || !pawn.BotAllowActive) return;
+        if (Utilities.GetGameRules() is not { BombPlanted: false }) return;
+
         try
         {
-            if (pawn?.Bot?.Handle is not { } handle || handle == nint.Zero) return false;
-            if (!IsValid(handle)) return false;
+            if (pawn.Bot?.Handle is not { } handle || handle == nint.Zero) return;
 
-            nint gsPtr = handle + BotOffsets.m_gameState;
-            if (!IsValid(gsPtr)) return false;
-            if (Marshal.ReadByte(gsPtr + BotOffsets.m_isRoundOver) != 0) return true;
+            nint gsPtr = handle + offsets.GameState;
+            if (Marshal.ReadByte(gsPtr + offsets.IsRoundOver) != 0) return;
 
-            nint bombAddr = gsPtr + BotOffsets.m_bombState;
-            if (!IsValid(bombAddr)) return false;
-            if (!MemoryPatch.SetMemAccess(bombAddr, sizeof(int))) return false;
-            if (Marshal.ReadInt32(bombAddr) != 0) Marshal.WriteInt32(bombAddr, 0);
-            return true;
+            Marshal.WriteInt32(gsPtr + offsets.BombState, 0);
         }
         catch (Exception ex)
         {
-            Logger.LogError($"UpdateBotBombState({playerName}): {ex.Message}");
-            return false;
+            Logger.LogError(ex, "Could not reset bomb state for {Player}.", player.PlayerName);
         }
     }
 }
